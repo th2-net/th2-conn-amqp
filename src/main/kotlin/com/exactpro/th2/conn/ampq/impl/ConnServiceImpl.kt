@@ -21,6 +21,8 @@ import com.exactpro.th2.common.grpc.Direction
 import com.exactpro.th2.common.grpc.Message
 import com.exactpro.th2.conn.ampq.ConnService
 import com.exactpro.th2.conn.ampq.MessageHolder
+import com.fasterxml.jackson.core.type.TypeReference
+import com.fasterxml.jackson.databind.ObjectMapper
 import com.google.protobuf.TextFormat
 
 class ConnServiceImpl(
@@ -28,22 +30,30 @@ class ConnServiceImpl(
     onMessage: (Direction, MessageHolder) -> Unit,
     onEvent: (Event) -> Unit,
 ) : ConnService(onMessage, onEvent) {
+
+    private lateinit var client: AmqpClient
+
     override fun start() {
         logger.info { "Starting the conn" }
-        TODO("Not yet implemented")
+        val errorReporter : (Throwable) -> Unit = {}
+        val config : Map<String, String> = ObjectMapper().convertValue(parameters, object: TypeReference<Map<String, String>>(){})
+        client = AmqpClient(config, errorReporter)
+
+        client.start()
+
+        val listener : (ByteArray) -> Unit = { bytes -> messageReceived(MessageHolder(bytes))}
+        client.setMessageListener(listener)
     }
 
     override fun send(message: Message) {
         logger.debug { "Sending message: ${TextFormat.shortDebugString(message)}" }
-        // do not forget to report the sent message
-        // you need to convert them to its raw format and report using
-        //
-        // messageSent(MessageHolder(body, messageProperties/*if need*/))
-        TODO("Not yet implemented")
+        val bytes = message.toByteArray()
+        client.send(bytes)
+        messageSent(MessageHolder(bytes))
     }
 
     override fun close() {
         logger.info { "Closing the conn" }
-        TODO("Not yet implemented")
+        client.stop();
     }
 }

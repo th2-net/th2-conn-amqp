@@ -19,10 +19,15 @@ package com.exactpro.th2.conn.ampq.impl
 class Configuration(
     val sessionAlias: String,
     val drainIntervalMills: Long = 1000L,
-    val rootEventName: String = "ConnTemplate",
+    val rootEventName: String = "ConnAmqp",
     val parameters: ConnParameters
 )
 
 class ConnParameters(
-    /*put you custom parameters here*/
+    val initialContextFactory: String,
+    val factorylookup: String,
+    val username: String,
+    val password: String,
+    val sendQueue: String,
+    val receiveQueue: String
 )
