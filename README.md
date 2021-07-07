@@ -37,7 +37,7 @@ spec:
   custom-config:
     sessionAlias: session-alias
     drainIntervalMills: 1000
-    rootEventName: ConnTemplate
+    rootEventName: ConnAmqp
     parameters:
       # initialContextFactory:
       # factorylookup:
