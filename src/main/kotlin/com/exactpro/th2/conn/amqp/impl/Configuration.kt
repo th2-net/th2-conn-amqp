@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.exactpro.th2.conn.ampq.impl
+package com.exactpro.th2.conn.amqp.impl
 
 class Configuration(
     val sessionAlias: String,

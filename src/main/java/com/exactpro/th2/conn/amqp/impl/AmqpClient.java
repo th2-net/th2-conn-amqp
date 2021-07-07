@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.exactpro.th2.conn.ampq.impl;
+package com.exactpro.th2.conn.amqp.impl;
 
 import java.nio.charset.Charset;
 import java.util.Map;
@@ -37,22 +37,17 @@ import org.slf4j.LoggerFactory;
 
 @NotThreadSafe
 public class AmqpClient {
-    private static Logger logger = LoggerFactory.getLogger(AmqpClient.class);
+    private static Logger LOGGER = LoggerFactory.getLogger(AmqpClient.class);
 
-    private JmsConsumer consumer;
-    private JmsContext jmsContext;
-    private JmsProducer producer;
-    private Destination sendDestination;
-    private Destination receiveDestination;
-    private final Map<String, String> config;
+    private final JmsConsumer consumer;
+    private final JmsContext jmsContext;
+    private final JmsProducer producer;
+    private final Destination sendDestination;
+    private final Destination receiveDestination;
     private final Consumer<Throwable> errorReporter;
 
-    public AmqpClient(Map<String, String> config, Consumer<Throwable> errorReporter) {
-        this.config = config;
+    public AmqpClient(Map<String, String> config, Consumer<Throwable> errorReporter) throws NamingException {
         this.errorReporter = errorReporter;
-    }
-
-    public void start() throws NamingException {
 
         Properties properties = new Properties();
         properties.putAll(config);
@@ -63,29 +58,31 @@ public class AmqpClient {
 
         jmsContext.start();
 
-        logger.info("Connected to amqp broker successfully");
+        LOGGER.info("Connected to amqp broker successfully");
 
         sendDestination = (Destination) context.lookup("sendQueue");
         receiveDestination = (Destination) context.lookup("receiveQueue");
 
         consumer = (JmsConsumer) jmsContext.createConsumer(receiveDestination);
-        logger.info("Queue consumer created to read data form the Queue:  {}", receiveDestination);
+        LOGGER.info("Queue consumer created to read data form the Queue:  {}", receiveDestination);
 
         // Lets create a queue producer and send the message
         producer = (JmsProducer) jmsContext.createProducer();
-        logger.info("Queue producer created for the Queue:  {}", sendDestination);
+        // TODO: The producer doesn't relate to sendDestination. Maybe avoid information from log
+        LOGGER.info("Queue producer created for the Queue:  {}", sendDestination);
     }
 
     public void setMessageListener(Consumer<byte[]> listener) {
-         // Set an asynchronous queue listener
+        // Set an asynchronous queue listener
         consumer.setMessageListener(message ->
         {
+            // TODO: conn-amqp should work with the base JMS message and convert it to bytes to send to th2
             TextMessage textMessage = (TextMessage) message;
-            logger.info("Message received form the Queue:  {}", receiveDestination);
+            LOGGER.info("Message received form the Queue:  {}", receiveDestination);
             try {
                 listener.accept(textMessage.getText().getBytes(Charset.defaultCharset()));
                 textMessage.acknowledge();
-                logger.info("Message successfully processed and Acknowledged");
+                LOGGER.info("Message successfully processed and Acknowledged");
             } catch (Exception e) {
                 errorReporter.accept(e);
             }
@@ -93,13 +90,13 @@ public class AmqpClient {
     }
 
     public void send(byte[] data) {
-        producer.send(sendDestination, new String(data, Charset.defaultCharset()));
-        logger.info("Message sent successfully");
+        producer.send(sendDestination, data);
+        LOGGER.info("Message sent successfully");
     }
 
     public void stop() {
         consumer.close();
         jmsContext.close();
-        logger.info("Stopped amqp client");
+        LOGGER.info("Stopped amqp client");
     }
 }

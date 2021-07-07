@@ -14,20 +14,9 @@
  * limitations under the License.
  */
 
-package com.exactpro.th2.conn.ampq
+package com.exactpro.th2.conn.amqp
 
-import mu.KotlinLogging
-import org.junit.jupiter.api.Assertions.*
-import org.junit.jupiter.api.Test
-
-internal class TestBoxMain {
-    @Test
-    internal fun `test your box`() {
-        LOGGER.info { "Test 1 equals 1" }
-        assertEquals(1, 1)
-    }
-
-    companion object {
-        private val LOGGER = KotlinLogging.logger { }
-    }
-}
+class MessageHolder(
+    val body: ByteArray,
+    val messageProperties: Map<String, String> = emptyMap()
+)

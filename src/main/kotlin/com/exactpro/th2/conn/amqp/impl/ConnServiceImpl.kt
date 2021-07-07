@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-package com.exactpro.th2.conn.ampq.impl
+package com.exactpro.th2.conn.amqp.impl
 
 import com.exactpro.th2.common.event.Event
 import com.exactpro.th2.common.grpc.Direction
-import com.exactpro.th2.common.grpc.Message
-import com.exactpro.th2.conn.ampq.ConnService
-import com.exactpro.th2.conn.ampq.MessageHolder
+import com.exactpro.th2.common.grpc.RawMessage
+import com.exactpro.th2.conn.amqp.ConnService
+import com.exactpro.th2.conn.amqp.MessageHolder
 import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.google.protobuf.TextFormat
@@ -39,13 +39,11 @@ class ConnServiceImpl(
         val config : Map<String, String> = ObjectMapper().convertValue(parameters, object: TypeReference<Map<String, String>>(){})
         client = AmqpClient(config, errorReporter)
 
-        client.start()
-
         val listener : (ByteArray) -> Unit = { bytes -> messageReceived(MessageHolder(bytes))}
         client.setMessageListener(listener)
     }
 
-    override fun send(message: Message) {
+    override fun send(message: RawMessage) {
         logger.debug { "Sending message: ${TextFormat.shortDebugString(message)}" }
         val bytes = message.toByteArray()
         client.send(bytes)

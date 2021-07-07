@@ -16,7 +16,7 @@
 
 @file:JvmName("BoxMain")
 
-package com.exactpro.th2.conn.ampq
+package com.exactpro.th2.conn.amqp
 
 import com.exactpro.th2.common.event.Event
 import com.exactpro.th2.common.event.EventUtils
@@ -27,8 +27,8 @@ import com.exactpro.th2.common.metrics.liveness
 import com.exactpro.th2.common.metrics.readiness
 import com.exactpro.th2.common.schema.factory.CommonFactory
 import com.exactpro.th2.common.schema.message.MessageRouter
-import com.exactpro.th2.conn.ampq.impl.Configuration
-import com.exactpro.th2.conn.ampq.impl.ConnServiceImpl
+import com.exactpro.th2.conn.amqp.impl.Configuration
+import com.exactpro.th2.conn.amqp.impl.ConnServiceImpl
 import mu.KotlinLogging
 import java.time.Instant
 import java.util.Deque
@@ -83,7 +83,6 @@ fun main(args: Array<String>) {
 
         // Do additional initialization required to your logic
         val rawRouter: MessageRouter<RawMessageBatch> = factory.messageRouterRawBatch
-        val parsedRouter: MessageRouter<MessageBatch> = factory.messageRouterParsedBatch
 
         val publisher = MessagePublisher(
             configuration.sessionAlias,
@@ -101,7 +100,7 @@ fun main(args: Array<String>) {
         )
         resources += service
 
-        parsedRouter.subscribeAll { _, parsedBatch ->
+        rawRouter.subscribeAll { _, parsedBatch ->
             parsedBatch.messagesList.forEach { msg ->
                 runCatching { service.send(msg) }
                     .onFailure {
@@ -109,7 +108,7 @@ fun main(args: Array<String>) {
                             Event.start().endTimestamp()
                                 .status(Event.Status.FAILED)
                                 .type("SendError")
-                                .name("Cannot send message ${msg.metadata.messageType}")
+                                .name("Cannot send message ${msg.metadata}")
                                 .apply {
                                     var ex: Throwable? = it
                                     do {

@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-package com.exactpro.th2.conn.ampq
+package com.exactpro.th2.conn.amqp
 
 import com.exactpro.th2.common.event.Event
 import com.exactpro.th2.common.event.EventUtils
 import com.exactpro.th2.common.grpc.Direction
-import com.exactpro.th2.common.grpc.Message
 import com.exactpro.th2.common.grpc.MessageID
+import com.exactpro.th2.common.grpc.RawMessage
 import mu.KotlinLogging
 import java.io.IOException
 import java.lang.Exception
@@ -45,7 +45,7 @@ abstract class ConnService(
      * @param message message to send
      */
     @Throws(IOException::class)
-    abstract fun send(message: Message)
+    abstract fun send(message: RawMessage)
 
     protected fun messageSent(holder: MessageHolder) {
         onMessage(Direction.SECOND, holder)
