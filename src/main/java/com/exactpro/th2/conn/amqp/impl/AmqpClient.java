@@ -44,9 +44,9 @@ public class AmqpClient {
     private final JmsProducer producer;
     private final Destination sendDestination;
     private final Destination receiveDestination;
-    private final Consumer<Throwable> errorReporter;
+    private final Consumer<Exception> errorReporter;
 
-    public AmqpClient(Map<String, String> config, Consumer<Throwable> errorReporter) throws NamingException {
+    public AmqpClient(Map<String, String> config, Consumer<Exception> errorReporter) throws NamingException {
         this.errorReporter = errorReporter;
 
         Properties properties = new Properties();

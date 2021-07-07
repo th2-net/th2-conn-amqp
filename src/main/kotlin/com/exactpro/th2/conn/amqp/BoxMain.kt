@@ -100,8 +100,8 @@ fun main(args: Array<String>) {
         )
         resources += service
 
-        rawRouter.subscribeAll { _, parsedBatch ->
-            parsedBatch.messagesList.forEach { msg ->
+        rawRouter.subscribeAll { _, rawBatch ->
+            rawBatch.messagesList.forEach { msg ->
                 runCatching { service.send(msg) }
                     .onFailure {
                         eventRouter.safeSend(

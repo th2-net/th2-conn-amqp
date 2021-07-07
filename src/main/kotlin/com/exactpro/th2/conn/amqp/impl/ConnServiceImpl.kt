@@ -21,9 +21,8 @@ import com.exactpro.th2.common.grpc.Direction
 import com.exactpro.th2.common.grpc.RawMessage
 import com.exactpro.th2.conn.amqp.ConnService
 import com.exactpro.th2.conn.amqp.MessageHolder
-import com.fasterxml.jackson.core.type.TypeReference
-import com.fasterxml.jackson.databind.ObjectMapper
 import com.google.protobuf.TextFormat
+import javax.naming.Context
 
 class ConnServiceImpl(
     private val parameters: ConnParameters,
@@ -33,10 +32,19 @@ class ConnServiceImpl(
 
     private lateinit var client: AmqpClient
 
+    private fun toMap(parameters: ConnParameters): Map<String, String> {
+        val environmentDetails = HashMap<String, String>()
+        environmentDetails[Context.INITIAL_CONTEXT_FACTORY] = parameters.initialContextFactory
+        environmentDetails["connectionfactory.factorylookup"] = parameters.factorylookup
+        environmentDetails["queue.sendQueue"] = parameters.sendQueue
+        environmentDetails["queue.receiveQueue"] = parameters.receiveQueue
+        return environmentDetails
+    }
+
     override fun start() {
         logger.info { "Starting the conn" }
-        val errorReporter : (Throwable) -> Unit = {}
-        val config : Map<String, String> = ObjectMapper().convertValue(parameters, object: TypeReference<Map<String, String>>(){})
+        val errorReporter : (Exception) -> Unit = {}
+        val config : Map<String, String> = toMap(parameters)
         client = AmqpClient(config, errorReporter)
 
         val listener : (ByteArray) -> Unit = { bytes -> messageReceived(MessageHolder(bytes))}
