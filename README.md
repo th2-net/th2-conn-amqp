@@ -27,22 +27,24 @@ The th2-conn box has 3 types of pins:
 Configuration example:
 ```yaml
 apiVersion: th2.exactpro.com/v1
-kind: Th2GenericBox
+kind: Th2Box
+metadata:
+  name: conn-amqp
 spec:
   image-name: your.image.repo:42/th2-conn-amqp
   image-version: 0.0.1
   type: th2-conn
   custom-config:
-      sessionAlias: session-alias
-      drainIntervalMills: 1000
-      rootEventName: ConnTemplate
-      parameters:
-          # initialContextFactory:
-          # factorylookup:
-          # username:
-          # password:
-          # sendQueue:
-          # receiveQueue:
+    sessionAlias: session-alias
+    drainIntervalMills: 1000
+    rootEventName: ConnTemplate
+    parameters:
+      # initialContextFactory:
+      # factorylookup:
+      # username:
+      # password:
+      # sendQueue:
+      # receiveQueue:
   pins:
     - name: in_raw
       connection-type: mq
