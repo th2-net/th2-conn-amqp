@@ -73,7 +73,7 @@ abstract class ConnService(
         }
     }
 
-    protected fun reportError(ex: Exception? = null, vararg relatedMessages: MessageID, block: Event.() -> Unit) {
+    protected fun reportError(ex: Exception? = null, block: Event.() -> Unit, vararg relatedMessages: MessageID) {
         runCatching {
             Event.start().endTimestamp()
                 .status(Event.Status.FAILED)

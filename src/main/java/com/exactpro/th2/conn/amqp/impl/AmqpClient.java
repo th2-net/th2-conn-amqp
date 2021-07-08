@@ -16,7 +16,6 @@
 
 package com.exactpro.th2.conn.amqp.impl;
 
-import java.nio.charset.Charset;
 import java.util.Map;
 import java.util.Properties;
 import java.util.function.Consumer;
@@ -24,16 +23,24 @@ import java.util.function.Consumer;
 import javax.annotation.concurrent.NotThreadSafe;
 import javax.jms.ConnectionFactory;
 import javax.jms.Destination;
-import javax.jms.TextMessage;
+import javax.jms.JMSContext;
+import javax.jms.JMSException;
+import javax.jms.Message;
 import javax.naming.Context;
 import javax.naming.InitialContext;
 import javax.naming.NamingException;
 
+import org.apache.qpid.jms.JmsConnection;
 import org.apache.qpid.jms.JmsConsumer;
 import org.apache.qpid.jms.JmsContext;
 import org.apache.qpid.jms.JmsProducer;
+import org.apache.qpid.jms.message.JmsMessage;
+import org.apache.qpid.jms.message.JmsMessageTransformation;
+import org.apache.qpid.jms.provider.amqp.message.AmqpJmsMessageFacade;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import io.netty.buffer.ByteBuf;
 
 @NotThreadSafe
 public class AmqpClient {
@@ -41,12 +48,13 @@ public class AmqpClient {
 
     private final JmsConsumer consumer;
     private final JmsContext jmsContext;
+    private final JmsConnection connection;
     private final JmsProducer producer;
     private final Destination sendDestination;
     private final Destination receiveDestination;
     private final Consumer<Exception> errorReporter;
 
-    public AmqpClient(Map<String, String> config, Consumer<Exception> errorReporter) throws NamingException {
+    public AmqpClient(Map<String, String> config, Consumer<Exception> errorReporter) throws NamingException, JMSException {
         this.errorReporter = errorReporter;
 
         Properties properties = new Properties();
@@ -54,7 +62,8 @@ public class AmqpClient {
         Context context = new InitialContext(properties);
 
         ConnectionFactory connectionFactory = (ConnectionFactory) context.lookup("factorylookup");
-        jmsContext = (JmsContext) connectionFactory.createContext(JmsContext.CLIENT_ACKNOWLEDGE);
+        connection = (JmsConnection) connectionFactory.createConnection();
+        jmsContext = new JmsContext(connection, JMSContext.CLIENT_ACKNOWLEDGE);
 
         jmsContext.start();
 
@@ -68,22 +77,26 @@ public class AmqpClient {
 
         // Lets create a queue producer and send the message
         producer = (JmsProducer) jmsContext.createProducer();
-        // TODO: The producer doesn't relate to sendDestination. Maybe avoid information from log
-        LOGGER.info("Queue producer created for the Queue:  {}", sendDestination);
     }
 
     public void setMessageListener(Consumer<byte[]> listener) {
         // Set an asynchronous queue listener
         consumer.setMessageListener(message ->
         {
-            // TODO: conn-amqp should work with the base JMS message and convert it to bytes to send to th2
-            TextMessage textMessage = (TextMessage) message;
             LOGGER.info("Message received form the Queue:  {}", receiveDestination);
+            byte[] bytes = null;
             try {
-                listener.accept(textMessage.getText().getBytes(Charset.defaultCharset()));
-                textMessage.acknowledge();
+                bytes = toBytes(message);
+            } catch (JMSException e) {
+                LOGGER.error("Error while getting bytes of the received message", e);
+                errorReporter.accept(e);
+            }
+            listener.accept(bytes);
+            try {
+                message.acknowledge();
                 LOGGER.info("Message successfully processed and Acknowledged");
-            } catch (Exception e) {
+            } catch (JMSException e) {
+                LOGGER.error("Error while acknowledging received message", e);
                 errorReporter.accept(e);
             }
         });
@@ -98,5 +111,11 @@ public class AmqpClient {
         consumer.close();
         jmsContext.close();
         LOGGER.info("Stopped amqp client");
+    }
+
+    private byte[] toBytes(Message message) throws JMSException {
+        JmsMessage jmsMessage = JmsMessageTransformation.transformMessage(connection, message);
+        ByteBuf buffer = ((AmqpJmsMessageFacade) jmsMessage.getFacade()).encodeMessage();
+        return buffer.array();
     }
 }

@@ -43,7 +43,7 @@ class ConnServiceImpl(
 
     override fun start() {
         logger.info { "Starting the conn" }
-        val errorReporter : (Exception) -> Unit = {}
+        val errorReporter : (Exception) -> Unit = {e -> reportError(e, {}) }
         val config : Map<String, String> = toMap(parameters)
         client = AmqpClient(config, errorReporter)
 
