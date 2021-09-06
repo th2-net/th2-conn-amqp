@@ -53,13 +53,13 @@ class ConnServiceImpl(
 
     override fun send(message: RawMessage) {
         logger.debug { "Sending message: ${TextFormat.shortDebugString(message)}" }
-        val bytes = message.toByteArray()
+        val bytes = message.body.toByteArray()
         client.send(bytes)
         messageSent(MessageHolder(bytes))
     }
 
     override fun close() {
         logger.info { "Closing the conn" }
-        client.stop();
+        client.stop()
     }
 }
