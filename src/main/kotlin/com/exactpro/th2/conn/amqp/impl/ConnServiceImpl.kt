@@ -51,6 +51,14 @@ class ConnServiceImpl(
         client.setMessageListener(listener)
     }
 
+    fun start(client: AmqpClient) {
+        logger.info { "Starting the conn" }
+        this.client = client
+
+        val listener : (ByteArray) -> Unit = { bytes -> messageReceived(MessageHolder(bytes))}
+        client.setMessageListener(listener)
+    }
+
     override fun send(message: RawMessage) {
         logger.debug { "Sending message: ${TextFormat.shortDebugString(message)}" }
         val bytes = message.body.toByteArray()

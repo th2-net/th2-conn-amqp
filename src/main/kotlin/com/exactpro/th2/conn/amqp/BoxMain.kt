@@ -108,13 +108,24 @@ fun main(args: Array<String>) {
                             Event.start().endTimestamp()
                                 .status(Event.Status.FAILED)
                                 .type("SendError")
-                                .name("Cannot send message ${msg.metadata}")
+                                .name("Cannot send message: ${msg.metadata}")
                                 .apply {
                                     var ex: Throwable? = it
                                     do {
                                         ex?.apply { bodyData(EventUtils.createMessageBean(message)) }
                                         ex = ex?.cause
                                     } while (ex != null)
+                                },
+                            if (msg.hasParentEventId()) msg.parentEventId.id else rootEvent.id
+                        )
+                    }.onSuccess {
+                        eventRouter.safeSend(
+                            Event.start().endTimestamp()
+                                .status(Event.Status.PASSED)
+                                .type("SendError")
+                                .name("Message was sent:  ${msg.metadata}")
+                                .apply {
+                                    messageID(msg.metadata.id)
                                 },
                             if (msg.hasParentEventId()) msg.parentEventId.id else rootEvent.id
                         )
