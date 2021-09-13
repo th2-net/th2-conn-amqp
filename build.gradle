@@ -40,10 +40,6 @@ targetCompatibility = JavaVersion.VERSION_11
 repositories {
     mavenCentral()
     maven {
-        name 'Bintray'
-        url 'https://dl.bintray.com/exactpro/th2'
-    }
-    maven {
         name 'Sonatype_snapshots'
         url 'https://s01.oss.sonatype.org/content/repositories/snapshots/'
     }
@@ -189,8 +185,8 @@ dependencies {
 
     testImplementation "org.mockito.kotlin:mockito-kotlin:3.2.0"
 
-    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.6.0'
-    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.7.2'
+    testImplementation "org.jetbrains.kotlin:kotlin-test-junit:$kotlin_version"
 }
 
 application {
