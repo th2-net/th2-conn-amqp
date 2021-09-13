@@ -18,7 +18,7 @@ class MessagePublisherTest {
 
         val publisher = MessagePublisher(alias, 1000, mockRouter)
         publisher.onMessage(Direction.FIRST, MessageHolder(msg.toByteArray()))
-        Thread.sleep(1050)
+        Thread.sleep(2050)
         verify(mockRouter).sendAll(check {
             Assertions.assertEquals(1, it.messagesCount)
             val rawMessage = it.getMessages(0)
