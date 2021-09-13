@@ -71,7 +71,11 @@ class MessagePublisher(
                             .setMetadata(createMetadata(direction, firstSequence++, toPublish.messageProperties))
                     )
                 }
-                rawRouter.sendAll(builder.build(), direction.queueAttribute.toString())
+                builder.build().let { messages ->
+                    rawRouter.sendAll(messages, direction.queueAttribute.toString())
+                    LOGGER.debug { "Published butch with messages: ${messages.toString()}" }
+                }
+
             } catch (ex: Exception) {
                 LOGGER.error(ex) { "Cannot drain events for $direction" }
             }

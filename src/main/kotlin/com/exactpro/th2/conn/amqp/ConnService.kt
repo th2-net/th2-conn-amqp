@@ -52,6 +52,7 @@ abstract class ConnService(
     }
 
     protected fun messageReceived(holder: MessageHolder) {
+        logger.debug { "Received bytes: ${holder.body}" }
         onMessage(Direction.FIRST, holder)
     }
 
