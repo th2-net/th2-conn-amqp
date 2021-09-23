@@ -25,6 +25,7 @@ import com.exactpro.th2.common.grpc.RawMessageMetadata
 import com.exactpro.th2.common.schema.message.MessageRouter
 import com.exactpro.th2.common.schema.message.QueueAttribute
 import com.google.protobuf.ByteString
+import io.prometheus.client.Counter
 import mu.KotlinLogging
 import java.time.Instant
 import java.util.EnumMap
@@ -53,6 +54,9 @@ class MessagePublisher(
             directionState(direction).addMessage(holder)
         } catch (ex: Exception) {
             LOGGER.error(ex) { "Cannot add message for direction $direction. ${holder.body.contentToString()}" }
+        }
+        counters[direction]?.run {
+            labels(sessionAlias).inc()
         }
     }
 
@@ -148,5 +152,19 @@ class MessagePublisher(
         private val LOGGER = KotlinLogging.logger { }
 
         private fun initSequence(): Long = Instant.now().run { epochSecond * 1_000_000_000 + nano }
+
+        private val counters: Map<Direction, Counter> = mapOf(
+            // FIXME: use DEFAULT_SESSION_ALIAS_LABEL_NAME variable
+            Direction.FIRST to Counter.build().apply {
+                name("th2_conn_incoming_msg_quantity")
+                labelNames("session_alias")
+                help("Quantity of incoming messages to conn")
+            }.register(),
+            Direction.SECOND to Counter.build().apply {
+                name("th2_conn_outgoing_msg_quantity")
+                labelNames("session_alias")
+                help("Quantity of outgoing messages from conn")
+            }.register()
+        )
     }
 }

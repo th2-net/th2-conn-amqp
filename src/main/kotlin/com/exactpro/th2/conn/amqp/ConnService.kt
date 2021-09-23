@@ -23,8 +23,6 @@ import com.exactpro.th2.common.grpc.MessageID
 import com.exactpro.th2.common.grpc.RawMessage
 import mu.KotlinLogging
 import java.io.IOException
-import java.lang.Exception
-import kotlin.jvm.Throws
 
 abstract class ConnService(
     private val onMessage: (Direction, MessageHolder) -> Unit,
