@@ -16,7 +16,11 @@
 
 package com.exactpro.th2.conn.amqp
 
+import java.time.Instant
+
 class MessageHolder(
     val body: ByteArray,
+    val sendTime: Instant,
     val messageProperties: Map<String, String> = emptyMap()
+
 )

@@ -24,6 +24,7 @@ import com.exactpro.th2.common.grpc.RawMessageBatch
 import com.exactpro.th2.common.grpc.RawMessageMetadata
 import com.exactpro.th2.common.schema.message.MessageRouter
 import com.exactpro.th2.common.schema.message.QueueAttribute
+import com.exactpro.th2.common.message.toTimestamp
 import com.google.protobuf.ByteString
 import io.prometheus.client.Counter
 import mu.KotlinLogging
@@ -70,9 +71,10 @@ class MessagePublisher(
                 val builder = RawMessageBatch.newBuilder()
                 for (toPublish in listToPublish) {
                     builder.addMessages(
-                        RawMessage.newBuilder()
-                            .setBody(ByteString.copyFrom(toPublish.body))
-                            .setMetadata(createMetadata(direction, firstSequence++, toPublish.messageProperties))
+                        RawMessage.newBuilder().apply {
+                            body = ByteString.copyFrom(toPublish.body)
+                            metadata = createMetadata(direction, firstSequence++, toPublish.messageProperties, toPublish.sendTime)
+                        }
                     )
                 }
                 builder.build().let { messages ->
@@ -86,15 +88,16 @@ class MessagePublisher(
         }
     }
 
-    private fun createMetadata(direction: Direction, sequence: Long, messageProperties: Map<String, String>): RawMessageMetadata {
-        return RawMessageMetadata.newBuilder()
-            .setId(MessageID.newBuilder()
+    private fun createMetadata(direction: Direction, sequence: Long, messageProperties: Map<String, String>, instant: Instant): RawMessageMetadata {
+        return RawMessageMetadata.newBuilder().apply {
+            setId(MessageID.newBuilder()
                 .setDirection(direction)
                 .setSequence(sequence)
                 .setConnectionId(ConnectionID.newBuilder().setSessionAlias(sessionAlias))
             )
-            .putAllProperties(messageProperties)
-            .build()
+            timestamp = instant.toTimestamp()
+            putAllProperties(messageProperties)
+        }.build()
     }
 
     private val Direction.queueAttribute: QueueAttribute

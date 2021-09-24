@@ -47,6 +47,7 @@ class ConnServiceTest {
             Assertions.assertEquals(Direction.SECOND, it)
         }, check {
             Assertions.assertEquals(xmlText, it.body.decodeToString())
+            Assertions.assertNotNull(it.sendTime)
         })
     }
 

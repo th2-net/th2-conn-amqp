@@ -22,6 +22,7 @@ import com.exactpro.th2.common.grpc.RawMessage
 import com.exactpro.th2.conn.amqp.ConnService
 import com.exactpro.th2.conn.amqp.MessageHolder
 import com.google.protobuf.TextFormat
+import java.time.Instant
 import javax.naming.Context
 
 class ConnServiceImpl(
@@ -47,7 +48,7 @@ class ConnServiceImpl(
         val config : Map<String, String> = toMap(parameters)
         client = AmqpClient(config, errorReporter)
 
-        val listener : (ByteArray) -> Unit = { bytes -> messageReceived(MessageHolder(bytes))}
+        val listener : (ByteArray) -> Unit = { bytes -> messageReceived(MessageHolder(bytes, Instant.now()))}
         client.setMessageListener(listener)
     }
 
@@ -55,7 +56,7 @@ class ConnServiceImpl(
         logger.info { "Starting the conn" }
         this.client = client
 
-        val listener : (ByteArray) -> Unit = { bytes -> messageReceived(MessageHolder(bytes))}
+        val listener : (ByteArray) -> Unit = { bytes -> messageReceived(MessageHolder(bytes, Instant.now()))}
         client.setMessageListener(listener)
     }
 
@@ -63,7 +64,7 @@ class ConnServiceImpl(
         logger.debug { "Sending message: ${TextFormat.shortDebugString(message)}" }
         val bytes = message.body.toByteArray()
         client.send(bytes)
-        messageSent(MessageHolder(bytes))
+        messageSent(MessageHolder(bytes, Instant.now()))
     }
 
     override fun close() {
