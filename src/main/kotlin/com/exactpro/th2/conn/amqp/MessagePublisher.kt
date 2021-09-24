@@ -22,10 +22,12 @@ import com.exactpro.th2.common.grpc.MessageID
 import com.exactpro.th2.common.grpc.RawMessage
 import com.exactpro.th2.common.grpc.RawMessageBatch
 import com.exactpro.th2.common.grpc.RawMessageMetadata
+import com.exactpro.th2.common.message.message
 import com.exactpro.th2.common.schema.message.MessageRouter
 import com.exactpro.th2.common.schema.message.QueueAttribute
 import com.exactpro.th2.common.message.toTimestamp
 import com.google.protobuf.ByteString
+import com.google.protobuf.TextFormat
 import io.prometheus.client.Counter
 import mu.KotlinLogging
 import java.time.Instant
@@ -45,6 +47,20 @@ class MessagePublisher(
         put(Direction.FIRST, DirectionState())
         put(Direction.SECOND, DirectionState())
     }
+    private val counters: Map<Direction, Counter> = EnumMap<Direction, Counter>(Direction::class.java).apply {
+        // FIXME: use DEFAULT_SESSION_ALIAS_LABEL_NAME variable
+        put(Direction.FIRST, Counter.build().apply {
+            name("th2_conn_incoming_msg_quantity")
+            labelNames("session_alias")
+            help("Quantity of incoming messages to conn")
+        }.register())
+        put(Direction.SECOND, Counter.build().apply {
+            name("th2_conn_outgoing_msg_quantity")
+            labelNames("session_alias")
+            help("Quantity of outgoing messages from conn")
+        }.register())
+    }
+
 
     init {
         executor.scheduleAtFixedRate(this::drainMessages, drainIntervalMills, drainIntervalMills, TimeUnit.MILLISECONDS)
@@ -74,12 +90,14 @@ class MessagePublisher(
                         RawMessage.newBuilder().apply {
                             body = ByteString.copyFrom(toPublish.body)
                             metadata = createMetadata(direction, firstSequence++, toPublish.messageProperties, toPublish.sendTime)
+                        }.apply {
+                            LOGGER.debug { "Publishing message: ${TextFormat.shortDebugString(this)}" }
                         }
                     )
                 }
                 builder.build().let { messages ->
                     rawRouter.sendAll(messages, direction.queueAttribute.toString())
-                    LOGGER.debug { "Published butch with messages: ${messages.toString()}" }
+                    LOGGER.debug { "Published butch with ${messages.messagesCount} messages" }
                 }
 
             } catch (ex: Exception) {
@@ -155,19 +173,5 @@ class MessagePublisher(
         private val LOGGER = KotlinLogging.logger { }
 
         private fun initSequence(): Long = Instant.now().run { epochSecond * 1_000_000_000 + nano }
-
-        private val counters: Map<Direction, Counter> = mapOf(
-            // FIXME: use DEFAULT_SESSION_ALIAS_LABEL_NAME variable
-            Direction.FIRST to Counter.build().apply {
-                name("th2_conn_incoming_msg_quantity")
-                labelNames("session_alias")
-                help("Quantity of incoming messages to conn")
-            }.register(),
-            Direction.SECOND to Counter.build().apply {
-                name("th2_conn_outgoing_msg_quantity")
-                labelNames("session_alias")
-                help("Quantity of outgoing messages from conn")
-            }.register()
-        )
     }
 }
