@@ -16,6 +16,8 @@
 
 package com.exactpro.th2.conn.amqp.impl;
 
+import java.util.Enumeration;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Properties;
 import java.util.function.Consumer;
@@ -114,6 +116,12 @@ public class AmqpClient {
     }
 
     private byte[] toBytes(Message message) throws JMSException {
+        LOGGER.info("Received message ({}) with properties: ",message.getJMSType());
+        Iterator properties = message.getPropertyNames().asIterator();
+        while(properties.hasNext()) {
+            LOGGER.info(properties.next().toString());
+        }
+
         JmsMessage jmsMessage = JmsMessageTransformation.transformMessage(connection, message);
         ByteBuf buffer = ((AmqpJmsMessageFacade) jmsMessage.getFacade()).encodeMessage();
         return buffer.array();
