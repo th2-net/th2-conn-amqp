@@ -119,7 +119,8 @@ public class AmqpClient {
         LOGGER.info("Received message ({}) with properties: ",message.getJMSType());
         Iterator properties = message.getPropertyNames().asIterator();
         while(properties.hasNext()) {
-            LOGGER.info(properties.next().toString());
+            String propertyName = properties.next().toString();
+            LOGGER.info( propertyName + " : " + message.getStringProperty(propertyName));
         }
 
         JmsMessage jmsMessage = JmsMessageTransformation.transformMessage(connection, message);
