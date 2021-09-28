@@ -116,12 +116,15 @@ public class AmqpClient {
     }
 
     private byte[] toBytes(Message message) throws JMSException {
-        LOGGER.info("Received message ({}) with properties: ",message.getJMSType());
+        LOGGER.info("Received message ({}:{}) with properties: ",message.getJMSTimestamp(),message.getJMSType());
+
         Iterator properties = message.getPropertyNames().asIterator();
         while(properties.hasNext()) {
             String propertyName = properties.next().toString();
             LOGGER.info( propertyName + " : " + message.getStringProperty(propertyName));
         }
+        LOGGER.info("Body: \n{}", message.getBody(String.class));
+
 
         JmsMessage jmsMessage = JmsMessageTransformation.transformMessage(connection, message);
         ByteBuf buffer = ((AmqpJmsMessageFacade) jmsMessage.getFacade()).encodeMessage();
