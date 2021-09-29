@@ -38,11 +38,9 @@ import org.apache.qpid.jms.JmsContext;
 import org.apache.qpid.jms.JmsProducer;
 import org.apache.qpid.jms.message.JmsMessage;
 import org.apache.qpid.jms.message.JmsMessageTransformation;
-import org.apache.qpid.jms.provider.amqp.message.AmqpJmsMessageFacade;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.netty.buffer.ByteBuf;
 
 @NotThreadSafe
 public class AmqpClient {
@@ -124,10 +122,8 @@ public class AmqpClient {
             LOGGER.info( propertyName + " : " + message.getStringProperty(propertyName));
         }
         LOGGER.info("Body: \n{}", message.getBody(String.class));
-
-
         JmsMessage jmsMessage = JmsMessageTransformation.transformMessage(connection, message);
-        ByteBuf buffer = ((AmqpJmsMessageFacade) jmsMessage.getFacade()).encodeMessage();
-        return buffer.array();
+        //ByteBuf buffer = ((AmqpJmsMessageFacade) jmsMessage.getFacade()).encodeMessage();
+        return message.getBody(byte[].class);
     }
 }
