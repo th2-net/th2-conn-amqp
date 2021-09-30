@@ -16,6 +16,7 @@
 
 package com.exactpro.th2.conn.amqp.impl;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Properties;
 import java.util.function.Consumer;
@@ -114,8 +115,8 @@ public class AmqpClient {
     }
 
     private byte[] toBytes(Message message) throws JMSException {
-        JmsMessage jmsMessage = JmsMessageTransformation.transformMessage(connection, message);
-        ByteBuf buffer = ((AmqpJmsMessageFacade) jmsMessage.getFacade()).encodeMessage();
-        return buffer.array();
+//        JmsMessage jmsMessage = JmsMessageTransformation.transformMessage(connection, message);
+//        ByteBuf buffer = ((AmqpJmsMessageFacade) jmsMessage.getFacade()).encodeMessage();
+        return message.getBody(String.class).getBytes(StandardCharsets.UTF_8);
     }
 }
