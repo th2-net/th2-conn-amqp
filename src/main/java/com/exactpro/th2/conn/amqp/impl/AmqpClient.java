@@ -121,7 +121,7 @@ public class AmqpClient {
             String propertyName = properties.next().toString();
             LOGGER.info( propertyName + " : " + message.getStringProperty(propertyName));
         }
-        LOGGER.info("Body: \n{}", message.getBody(String.class));
+        LOGGER.info("Body: \n{}", message.getBody(byte[].class));
         JmsMessage jmsMessage = JmsMessageTransformation.transformMessage(connection, message);
         //ByteBuf buffer = ((AmqpJmsMessageFacade) jmsMessage.getFacade()).encodeMessage();
         return message.getBody(byte[].class);
