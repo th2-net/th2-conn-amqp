@@ -16,6 +16,7 @@
 
 package com.exactpro.th2.conn.amqp.impl;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Enumeration;
 import java.util.Iterator;
 import java.util.Map;
@@ -121,9 +122,9 @@ public class AmqpClient {
             String propertyName = properties.next().toString();
             LOGGER.info( propertyName + " : " + message.getStringProperty(propertyName));
         }
-        LOGGER.info("Body: \n{}", message.getBody(byte[].class));
+        LOGGER.info("Body: \n{}", message.getBody(String.class));
         JmsMessage jmsMessage = JmsMessageTransformation.transformMessage(connection, message);
         //ByteBuf buffer = ((AmqpJmsMessageFacade) jmsMessage.getFacade()).encodeMessage();
-        return message.getBody(byte[].class);
+        return message.getBody(String.class).getBytes(StandardCharsets.UTF_8);
     }
 }
