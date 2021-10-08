@@ -84,7 +84,7 @@ public class AmqpClient {
         // Set an asynchronous queue listener
         consumer.setMessageListener(message ->
         {
-            LOGGER.info("Message received form the Queue:  {}", receiveDestination);
+            LOGGER.info("Message received from the Queue:  {}", receiveDestination);
             byte[] bytes = null;
             try {
                 bytes = toBytes(message);
@@ -115,8 +115,10 @@ public class AmqpClient {
     }
 
     private byte[] toBytes(Message message) throws JMSException {
+        String body = message.getBody(String.class);
+        LOGGER.debug("Received message: {}", body);
 //        JmsMessage jmsMessage = JmsMessageTransformation.transformMessage(connection, message);
 //        ByteBuf buffer = ((AmqpJmsMessageFacade) jmsMessage.getFacade()).encodeMessage();
-        return message.getBody(String.class).getBytes(StandardCharsets.UTF_8);
+        return body.getBytes(StandardCharsets.UTF_8);
     }
 }
