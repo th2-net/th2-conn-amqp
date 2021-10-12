@@ -47,6 +47,7 @@ import org.apache.qpid.jms.message.JmsMessage;
 import org.apache.qpid.jms.message.JmsMessageTransformation;
 import org.apache.qpid.jms.provider.amqp.message.AmqpJmsBytesMessageFacade;
 import org.apache.qpid.jms.provider.amqp.message.AmqpJmsMessageFacade;
+import org.apache.qpid.proton.amqp.Symbol;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -117,9 +118,14 @@ public class AmqpClient {
 
     public void send(byte[] data) throws JMSException {
         BytesMessage message = session.createBytesMessage();
-        ((AmqpJmsBytesMessageFacade)((JmsBytesMessage)message).getFacade()).setContentType(null);
         message.writeBytes(data);
         message.setStringProperty("content-type", null);
+
+//        ((AmqpJmsBytesMessageFacade)((JmsBytesMessage)message).getFacade()).setContentType(null);
+        JmsBytesMessage jmsBytesMessage = (JmsBytesMessage)message;
+        AmqpJmsBytesMessageFacade facade = (AmqpJmsBytesMessageFacade)jmsBytesMessage.getFacade();
+        facade.setContentType(Symbol.valueOf(""));
+
         producer.send(sendDestination, message);
 
 //        producer.send(sendDestination, data);
