@@ -55,7 +55,7 @@ public class AmqpClient {
     private final Destination receiveDestination;
     private final Consumer<Exception> errorReporter;
 
-    public AmqpClient(Map<String, String> config, Consumer<Exception> errorReporter) throws NamingException, JMSException {
+    public AmqpClient(Map<String, String> config, Map<String, String> defaultHeaders, Consumer<Exception> errorReporter) throws NamingException, JMSException {
         this.errorReporter = errorReporter;
 
         Properties properties = new Properties();
@@ -78,6 +78,10 @@ public class AmqpClient {
 
         // Lets create a queue producer and send the message
         producer = (JmsProducer) jmsContext.createProducer();
+
+        defaultHeaders.forEach( (name, value) -> {
+            producer.setProperty(name, value);
+        });
     }
 
     public void setMessageListener(Consumer<byte[]> listener) {
@@ -105,6 +109,7 @@ public class AmqpClient {
 
     public void send(byte[] data) {
         producer.send(sendDestination, data);
+        producer.setProperty("content-type", null);
         LOGGER.info("Message sent successfully");
     }
 

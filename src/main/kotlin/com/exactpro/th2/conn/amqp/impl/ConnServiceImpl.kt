@@ -28,7 +28,7 @@ import javax.naming.Context
 class ConnServiceImpl(
     private val parameters: ConnParameters,
     onMessage: (Direction, MessageHolder) -> Unit,
-    onEvent: (Event) -> Unit,
+    onEvent: (Event) -> Unit
 ) : ConnService(onMessage, onEvent) {
 
     private lateinit var client: AmqpClient
@@ -46,7 +46,7 @@ class ConnServiceImpl(
         logger.info { "Starting the conn" }
         val errorReporter : (Exception) -> Unit = {e -> reportError(e, {}) }
         val config : Map<String, String> = toMap(parameters)
-        client = AmqpClient(config, errorReporter)
+        client = AmqpClient(config, parameters.defaultHeaders, errorReporter)
 
         val listener : (ByteArray) -> Unit = { bytes -> messageReceived(MessageHolder(bytes, Instant.now()))}
         client.setMessageListener(listener)

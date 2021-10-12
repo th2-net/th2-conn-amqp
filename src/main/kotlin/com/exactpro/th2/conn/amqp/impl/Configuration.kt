@@ -20,7 +20,7 @@ class Configuration(
     val sessionAlias: String,
     val drainIntervalMills: Long = 1000L,
     val rootEventName: String = "ConnAmqp",
-    val parameters: ConnParameters
+    val parameters: ConnParameters,
 )
 
 class ConnParameters(
@@ -29,5 +29,6 @@ class ConnParameters(
     val username: String,
     val password: String,
     val sendQueue: String,
-    val receiveQueue: String
+    val receiveQueue: String,
+    val defaultHeaders: Map<String, String> = emptyMap(),
 )
