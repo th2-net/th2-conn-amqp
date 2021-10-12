@@ -24,11 +24,14 @@ import java.util.Properties;
 import java.util.function.Consumer;
 
 import javax.annotation.concurrent.NotThreadSafe;
+import javax.jms.BytesMessage;
 import javax.jms.ConnectionFactory;
 import javax.jms.Destination;
 import javax.jms.JMSContext;
 import javax.jms.JMSException;
 import javax.jms.Message;
+import javax.jms.MessageProducer;
+import javax.jms.Session;
 import javax.naming.Context;
 import javax.naming.InitialContext;
 import javax.naming.NamingException;
@@ -36,7 +39,9 @@ import javax.naming.NamingException;
 import org.apache.qpid.jms.JmsConnection;
 import org.apache.qpid.jms.JmsConsumer;
 import org.apache.qpid.jms.JmsContext;
+import org.apache.qpid.jms.JmsMessageProducer;
 import org.apache.qpid.jms.JmsProducer;
+import org.apache.qpid.jms.JmsSession;
 import org.apache.qpid.jms.message.JmsMessage;
 import org.apache.qpid.jms.message.JmsMessageTransformation;
 import org.slf4j.Logger;
@@ -49,6 +54,7 @@ public class AmqpClient {
 
     private final JmsConsumer consumer;
     private final JmsContext jmsContext;
+    private final JmsSession session;
     private final JmsConnection connection;
     private final JmsProducer producer;
     private final Destination sendDestination;
@@ -66,6 +72,8 @@ public class AmqpClient {
         connection = (JmsConnection) connectionFactory.createConnection();
         jmsContext = new JmsContext(connection, JMSContext.CLIENT_ACKNOWLEDGE);
 
+        session = (JmsSession) connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
+
         jmsContext.start();
 
         LOGGER.info("Connected to amqp broker successfully");
@@ -77,7 +85,7 @@ public class AmqpClient {
         LOGGER.info("Queue consumer created to read data form the Queue:  {}", receiveDestination);
 
         // Lets create a queue producer and send the message
-        producer = (JmsProducer) jmsContext.createProducer();
+        producer = new JmsProducer(session, (JmsMessageProducer) session.createProducer(sendDestination));
         producer.setJMSReplyTo((Destination) context.lookup("replyTo"));
     }
 
@@ -105,6 +113,10 @@ public class AmqpClient {
     }
 
     public void send(byte[] data) {
+//        BytesMessage message = session.createBytesMessage();
+//        message.writeBytes(data);
+//        producer.send()
+
         producer.send(sendDestination, data);
         producer.setProperty("content-type", null);
         LOGGER.info("Message sent successfully");
