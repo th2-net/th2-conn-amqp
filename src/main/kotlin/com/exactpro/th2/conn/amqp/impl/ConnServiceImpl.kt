@@ -33,20 +33,22 @@ class ConnServiceImpl(
 
     private lateinit var client: AmqpClient
 
-    private fun toMap(parameters: ConnParameters): Map<String, String> {
-        val environmentDetails = HashMap<String, String>()
+    private fun toMap(parameters: ConnParameters): Map<String, String?> {
+        val environmentDetails = HashMap<String, String?>()
         environmentDetails[Context.INITIAL_CONTEXT_FACTORY] = parameters.initialContextFactory
         environmentDetails["connectionfactory.factorylookup"] = parameters.factorylookup
         environmentDetails["queue.sendQueue"] = parameters.sendQueue
         environmentDetails["queue.receiveQueue"] = parameters.receiveQueue
+        environmentDetails["queue.replyTo"] = parameters.replyTo
+        environmentDetails["contentType"] = parameters.contentType
         return environmentDetails
     }
 
     override fun start() {
         logger.info { "Starting the conn" }
         val errorReporter : (Exception) -> Unit = {e -> reportError(e, {}) }
-        val config : Map<String, String> = toMap(parameters)
-        client = AmqpClient(config, parameters.defaultHeaders, errorReporter)
+        val config : Map<String, String?> = toMap(parameters)
+        client = AmqpClient(config, errorReporter)
 
         val listener : (ByteArray) -> Unit = { bytes -> messageReceived(MessageHolder(bytes, Instant.now()))}
         client.setMessageListener(listener)
