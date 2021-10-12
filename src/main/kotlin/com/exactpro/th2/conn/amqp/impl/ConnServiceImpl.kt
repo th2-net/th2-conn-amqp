@@ -40,7 +40,6 @@ class ConnServiceImpl(
         environmentDetails["queue.sendQueue"] = parameters.sendQueue
         environmentDetails["queue.receiveQueue"] = parameters.receiveQueue
         environmentDetails["queue.replyTo"] = parameters.replyTo
-        environmentDetails["contentType"] = parameters.contentType
         return environmentDetails
     }
 

@@ -30,6 +30,5 @@ class ConnParameters(
     val password: String,
     val sendQueue: String,
     val receiveQueue: String,
-    val replyTo: String? = null,
-    val contentType: String? = null
+    val replyTo: String
 )
