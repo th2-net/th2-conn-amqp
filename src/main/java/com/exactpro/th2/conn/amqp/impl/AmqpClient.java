@@ -32,6 +32,7 @@ import javax.jms.JMSException;
 import javax.jms.Message;
 import javax.jms.MessageProducer;
 import javax.jms.Session;
+import javax.jms.TextMessage;
 import javax.naming.Context;
 import javax.naming.InitialContext;
 import javax.naming.NamingException;
@@ -117,18 +118,18 @@ public class AmqpClient {
     }
 
     public void send(byte[] data) throws JMSException {
-        BytesMessage message = session.createBytesMessage();
-        message.writeBytes(data);
-        message.setStringProperty("content-type", null);
+//        TextMessage message = session.createTextMessage();
+//        message.setText(new String(data));
+//        message.setStringProperty("content-type", null);
 
 //        ((AmqpJmsBytesMessageFacade)((JmsBytesMessage)message).getFacade()).setContentType(null);
-        JmsBytesMessage jmsBytesMessage = (JmsBytesMessage)message;
-        AmqpJmsBytesMessageFacade facade = (AmqpJmsBytesMessageFacade)jmsBytesMessage.getFacade();
-        facade.setContentType(Symbol.valueOf(""));
+//        JmsBytesMessage jmsBytesMessage = (JmsBytesMessage)message;
+//        AmqpJmsBytesMessageFacade facade = (AmqpJmsBytesMessageFacade)jmsBytesMessage.getFacade();
+//        facade.setContentType(Symbol.valueOf(""));
 
-        producer.send(sendDestination, message);
+//        producer.send(sendDestination, message);
 
-//        producer.send(sendDestination, data);
+        producer.send(sendDestination, new String(data));
         LOGGER.info("Message sent successfully");
     }
 
