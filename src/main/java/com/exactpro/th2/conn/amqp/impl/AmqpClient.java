@@ -104,7 +104,7 @@ public class AmqpClient {
     }
 
     public void send(byte[] data) {
-        producer.send(sendDestination, data);
+        producer.send(sendDestination, new String(data));
         LOGGER.info("Message sent successfully");
     }
 
