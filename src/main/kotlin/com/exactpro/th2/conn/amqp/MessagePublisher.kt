@@ -97,7 +97,7 @@ class MessagePublisher(
                 }
                 builder.build().let { messages ->
                     rawRouter.sendAll(messages, direction.queueAttribute.toString())
-                    LOGGER.debug { "Published butch with ${messages.messagesCount} messages" }
+                    LOGGER.debug { "Published batch with ${messages.messagesCount} messages" }
                 }
 
             } catch (ex: Exception) {

@@ -81,7 +81,7 @@ public class AmqpClient {
     }
 
     public void setMessageListener(Consumer<byte[]> listener) {
-        // Set an asynchronous queue listener
+        LOGGER.debug("Set an asynchronous queue listener");
         consumer.setMessageListener(message ->
         {
             LOGGER.info("Message received from the Queue:  {}", receiveDestination);
