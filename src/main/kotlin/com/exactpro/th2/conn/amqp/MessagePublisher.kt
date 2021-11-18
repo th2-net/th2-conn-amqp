@@ -42,23 +42,24 @@ class MessagePublisher(
     private val drainIntervalMills: Long,
     private val rawRouter: MessageRouter<RawMessageBatch>,
 ) : AutoCloseable {
+
     private val executor: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor()
     private val directionStates: Map<Direction, DirectionState> = EnumMap<Direction, DirectionState>(Direction::class.java).apply {
         put(Direction.FIRST, DirectionState())
         put(Direction.SECOND, DirectionState())
     }
-    private val counters: Map<Direction, Counter> = EnumMap<Direction, Counter>(Direction::class.java).apply {
+    private val counters: Map<Direction, Counter.Child> = EnumMap<Direction, Counter.Child>(Direction::class.java).apply {
         // FIXME: use DEFAULT_SESSION_ALIAS_LABEL_NAME variable
         put(Direction.FIRST, Counter.build().apply {
             name("th2_conn_incoming_msg_quantity")
             labelNames("session_alias")
             help("Quantity of incoming messages to conn")
-        }.register())
+        }.register().labels(sessionAlias))
         put(Direction.SECOND, Counter.build().apply {
             name("th2_conn_outgoing_msg_quantity")
             labelNames("session_alias")
             help("Quantity of outgoing messages from conn")
-        }.register())
+        }.register().labels(sessionAlias))
     }
 
 
@@ -72,9 +73,7 @@ class MessagePublisher(
         } catch (ex: Exception) {
             LOGGER.error(ex) { "Cannot add message for direction $direction. ${holder.body.contentToString()}" }
         }
-        counters[direction]?.run {
-            labels(sessionAlias).inc()
-        }
+        counters[direction]?.inc()
     }
 
     private fun drainMessages() {
@@ -90,7 +89,6 @@ class MessagePublisher(
                         RawMessage.newBuilder().apply {
                             body = ByteString.copyFrom(toPublish.body)
                             metadata = createMetadata(direction, firstSequence++, toPublish.messageProperties, toPublish.sendTime)
-                        }.apply {
                             LOGGER.debug { "Publishing message: ${TextFormat.shortDebugString(this)}" }
                         }
                     )
@@ -173,5 +171,6 @@ class MessagePublisher(
         private val LOGGER = KotlinLogging.logger { }
 
         private fun initSequence(): Long = Instant.now().run { epochSecond * 1_000_000_000 + nano }
+
     }
 }
