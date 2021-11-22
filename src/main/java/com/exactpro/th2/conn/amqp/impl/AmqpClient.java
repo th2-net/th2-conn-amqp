@@ -35,13 +35,8 @@ import org.apache.qpid.jms.JmsConnection;
 import org.apache.qpid.jms.JmsConsumer;
 import org.apache.qpid.jms.JmsContext;
 import org.apache.qpid.jms.JmsProducer;
-import org.apache.qpid.jms.message.JmsMessage;
-import org.apache.qpid.jms.message.JmsMessageTransformation;
-import org.apache.qpid.jms.provider.amqp.message.AmqpJmsMessageFacade;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import io.netty.buffer.ByteBuf;
 
 @NotThreadSafe
 public class AmqpClient {

@@ -18,6 +18,7 @@ package com.exactpro.th2.conn.amqp.impl
 
 class Configuration(
     val sessionAlias: String,
+    val enableMessageSendingEvent: Boolean = true,
     val drainIntervalMills: Long = 1000L,
     val rootEventName: String = "ConnAmqp",
     val parameters: ConnParameters

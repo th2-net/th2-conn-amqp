@@ -21,7 +21,6 @@ package com.exactpro.th2.conn.amqp
 import com.exactpro.th2.common.event.Event
 import com.exactpro.th2.common.event.EventUtils
 import com.exactpro.th2.common.grpc.EventBatch
-import com.exactpro.th2.common.grpc.MessageBatch
 import com.exactpro.th2.common.grpc.RawMessageBatch
 import com.exactpro.th2.common.metrics.liveness
 import com.exactpro.th2.common.metrics.readiness
@@ -119,16 +118,18 @@ fun main(args: Array<String>) {
                             if (msg.hasParentEventId()) msg.parentEventId.id else rootEvent.id
                         )
                     }.onSuccess {
-                        eventRouter.safeSend(
-                            Event.start().endTimestamp()
-                                .status(Event.Status.PASSED)
-                                .type("SendError")
-                                .name("Message was sent:  ${msg.metadata}")
-                                .apply {
-                                    messageID(msg.metadata.id)
-                                },
-                            if (msg.hasParentEventId()) msg.parentEventId.id else rootEvent.id
-                        )
+                        if (configuration.enableMessageSendingEvent) {
+                            eventRouter.safeSend(
+                                Event.start().endTimestamp()
+                                    .status(Event.Status.PASSED)
+                                    .type("SendError")
+                                    .name("Message was sent:  ${msg.metadata}")
+                                    .apply {
+                                        messageID(msg.metadata.id)
+                                    },
+                                if (msg.hasParentEventId()) msg.parentEventId.id else rootEvent.id
+                            )
+                        }
                     }
             }
         }
