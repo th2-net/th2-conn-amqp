@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2021 Exactpro (Exactpro Systems Limited)
+ * Copyright 2020-2022 Exactpro (Exactpro Systems Limited)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,21 +14,12 @@
  * limitations under the License.
  */
 
-package com.exactpro.th2.conn.amqp.impl
+package com.exactpro.th2.conn.amqp.client
 
-class Configuration(
-    val sessionAlias: String,
-    val enableMessageSendingEvent: Boolean = true,
-    val drainIntervalMills: Long = 1000L,
-    val rootEventName: String = "ConnAmqp",
-    val parameters: ConnParameters
-)
+typealias MessageBody = ByteArray
 
-class ConnParameters(
-    val initialContextFactory: String,
-    val factorylookup: String,
-    val username: String,
-    val password: String,
-    val sendQueue: String,
-    val receiveQueue: String
-)
+sealed interface IClient {
+    fun setMessageListener(callback: (ByteArray) -> Unit)
+    fun send(data: MessageBody)
+    fun stop()
+}

@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2021 Exactpro (Exactpro Systems Limited)
+ * Copyright 2020-2022 Exactpro (Exactpro Systems Limited)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,13 +14,15 @@
  * limitations under the License.
  */
 
-package com.exactpro.th2.conn.amqp.impl
+package com.exactpro.th2.conn.amqp.connservice
 
 import com.exactpro.th2.common.event.Event
 import com.exactpro.th2.common.grpc.Direction
 import com.exactpro.th2.common.grpc.RawMessage
-import com.exactpro.th2.conn.amqp.ConnService
 import com.exactpro.th2.conn.amqp.MessageHolder
+import com.exactpro.th2.conn.amqp.client.AmqpClient
+import com.exactpro.th2.conn.amqp.client.IClient
+import com.exactpro.th2.conn.amqp.configuration.ConnParameters
 import com.google.protobuf.TextFormat
 import java.time.Instant
 import javax.naming.Context
@@ -31,33 +33,18 @@ class ConnServiceImpl(
     onEvent: (Event) -> Unit,
 ) : ConnService(onMessage, onEvent) {
 
-    private lateinit var client: AmqpClient
+    private lateinit var client: IClient
 
-    private fun toMap(parameters: ConnParameters): Map<String, String> {
-        val environmentDetails = HashMap<String, String>()
-        environmentDetails[Context.INITIAL_CONTEXT_FACTORY] = parameters.initialContextFactory
-        environmentDetails["connectionfactory.factorylookup"] = parameters.factorylookup
-        environmentDetails["queue.sendQueue"] = parameters.sendQueue
-        environmentDetails["queue.receiveQueue"] = parameters.receiveQueue
-        return environmentDetails
-    }
+    override fun start() = start(AmqpClient(parameters.toMap()) {
+        reportError(it, {})
+    })
 
-    override fun start() {
-        logger.info { "Starting the conn" }
-        val errorReporter : (Exception) -> Unit = {e -> reportError(e, {}) }
-        val config : Map<String, String> = toMap(parameters)
-        client = AmqpClient(config, errorReporter)
-
-        val listener : (ByteArray) -> Unit = { bytes -> messageReceived(MessageHolder(bytes, Instant.now()))}
-        client.setMessageListener(listener)
-    }
-
-    fun start(client: AmqpClient) {
+    fun start(client: IClient) {
         logger.info { "Starting the conn" }
         this.client = client
-
-        val listener : (ByteArray) -> Unit = { bytes -> messageReceived(MessageHolder(bytes, Instant.now()))}
-        client.setMessageListener(listener)
+        client.setMessageListener {
+            messageReceived(MessageHolder(it, Instant.now()))
+        }
     }
 
     override fun send(message: RawMessage) {
@@ -70,5 +57,14 @@ class ConnServiceImpl(
     override fun close() {
         logger.info { "Closing the conn" }
         client.stop()
+    }
+
+    companion object {
+        private fun ConnParameters.toMap(): Map<String, String> = mutableMapOf(
+            Context.INITIAL_CONTEXT_FACTORY to initialContextFactory,
+            "connectionfactory.factorylookup" to factorylookup,
+            "queue.sendQueue" to sendQueue,
+            "queue.receiveQueue" to receiveQueue
+        )
     }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2021 Exactpro (Exactpro Systems Limited)
+ * Copyright 2020-2022 Exactpro (Exactpro Systems Limited)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,7 +38,7 @@ import java.util.concurrent.atomic.AtomicLong
 
 class MessagePublisher(
     private val sessionAlias: String,
-    private val drainIntervalMills: Long,
+    drainIntervalMills: Long,
     private val rawRouter: MessageRouter<RawMessageBatch>,
 ) : AutoCloseable {
 
@@ -69,10 +69,10 @@ class MessagePublisher(
     fun onMessage(direction: Direction, holder: MessageHolder) {
         try {
             directionState(direction).addMessage(holder)
+            counters[direction]?.inc()
         } catch (ex: Exception) {
             LOGGER.error(ex) { "Cannot add message for direction $direction. ${holder.body.contentToString()}" }
         }
-        counters[direction]?.inc()
     }
 
     private fun drainMessages() {
@@ -88,7 +88,7 @@ class MessagePublisher(
                         RawMessage.newBuilder().apply {
                             body = ByteString.copyFrom(toPublish.body)
                             metadata = createMetadata(direction, firstSequence++, toPublish.messageProperties, toPublish.sendTime)
-                            LOGGER.debug { "Publishing message: ${TextFormat.shortDebugString(this)}" }
+                            LOGGER.trace { "Publishing message: ${TextFormat.shortDebugString(this)}" }
                         }
                     )
                 }
@@ -119,7 +119,7 @@ class MessagePublisher(
         get() = when (this) {
             Direction.FIRST -> QueueAttribute.FIRST
             Direction.SECOND -> QueueAttribute.SECOND
-            else -> throw IllegalArgumentException("Unsupported direction: $this")
+            else -> error("Unsupported direction: $this")
         }
 
     private fun getFirstBatchSequence(direction: Direction, batchSize: Long): Long =
@@ -145,24 +145,20 @@ class MessagePublisher(
 
     private class DirectionState {
         private val sequence = AtomicLong(initSequence())
-        private val messagesToPublish: MutableList<MessageHolder> = arrayListOf()
+        private val messagesToPublish = mutableListOf<MessageHolder>()
 
         fun firstBatchSequence(batchSize: Long): Long = sequence.getAndAdd(batchSize)
 
-        fun addMessage(holder: MessageHolder) {
-            synchronized(messagesToPublish) {
-                messagesToPublish += holder
-            }
+        fun addMessage(holder: MessageHolder) = synchronized(messagesToPublish) {
+            messagesToPublish += holder
         }
 
-        fun drain(): List<MessageHolder> {
-            return synchronized(messagesToPublish) {
-                if (messagesToPublish.isEmpty()) return@synchronized emptyList()
+        fun drain() = synchronized(messagesToPublish) {
+            if (messagesToPublish.isEmpty()) emptyList<MessageHolder>()
 
-                val result = messagesToPublish.toList()
-                messagesToPublish.clear()
-                result
-            }
+            val result = messagesToPublish.toList()
+            messagesToPublish.clear()
+            result
         }
     }
 

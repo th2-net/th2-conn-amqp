@@ -14,8 +14,19 @@
  * limitations under the License.
  */
 
-package com.exactpro.th2.conn.amqp
+package com.exactpro.th2.conn.amqp.configuration
 
-import java.time.Instant
+class Configuration(
+    val sessionAlias: String,
+    val enableMessageSendingEvent: Boolean = true,
+    val drainIntervalMills: Long = 1000L,
+    val rootEventName: String = "ConnAmqp",
+    val parameters: ConnParameters
+)
 
-data class MessageHolder(val body: ByteArray, val sendTime: Instant, val messageProperties: Map<String, String> = emptyMap())
+class ConnParameters(
+    val initialContextFactory: String,
+    val factorylookup: String,
+    val sendQueue: String,
+    val receiveQueue: String
+)
