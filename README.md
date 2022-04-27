@@ -35,14 +35,19 @@ spec:
   image-version: 0.0.1
   type: th2-conn
   custom-config:
-    sessionAlias: session-alias
     drainIntervalMills: 1000
     rootEventName: ConnAmqp
     parameters:
+    - 
+      # sessionAlias:
       # initialContextFactory:
       # factorylookup:
-      # username:
-      # password:
+      # sendQueue:
+      # receiveQueue:
+    - 
+      # sessionAlias:
+      # initialContextFactory:
+      # factorylookup:
       # sendQueue:
       # receiveQueue:
   pins:

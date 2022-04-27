@@ -64,7 +64,8 @@ class ConnServiceImpl(
             Context.INITIAL_CONTEXT_FACTORY to initialContextFactory,
             "connectionfactory.factorylookup" to factorylookup,
             "queue.sendQueue" to sendQueue,
-            "queue.receiveQueue" to receiveQueue
+            "queue.receiveQueue" to receiveQueue,
+            "sessionAlias" to sessionAlias
         )
     }
 }

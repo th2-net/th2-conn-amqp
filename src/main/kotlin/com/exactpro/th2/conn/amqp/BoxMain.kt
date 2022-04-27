@@ -68,58 +68,61 @@ fun main(args: Array<String>) {
         )
 
         val rawRouter: MessageRouter<RawMessageBatch> = factory.messageRouterRawBatch
+        configuration.parameters.forEach{connParameters ->
+            run {
+                val publisher = MessagePublisher(
+                    connParameters.sessionAlias,
+                    configuration.drainIntervalMills,
+                    rawRouter
+                )
+                resources += publisher
 
-        val publisher = MessagePublisher(
-            configuration.sessionAlias,
-            configuration.drainIntervalMills,
-            rawRouter
-        )
-        resources += publisher
+                val service: ConnService = ConnServiceImpl(
+                    parameters = connParameters,
+                    onMessage = publisher::onMessage,
+                    onEvent = { event ->
 
-        val service: ConnService = ConnServiceImpl(
-            parameters = configuration.parameters,
-            onMessage = publisher::onMessage,
-            onEvent = { event ->
-                eventRouter.safeSend(event, rootEvent.id)
-            }
-        )
-        resources += service
+                        eventRouter.safeSend(event, rootEvent.id)
+                    }
+                )
+                resources += service
 
-        rawRouter.subscribeAll { _, rawBatch ->
-            rawBatch.messagesList.forEach { msg ->
-                msg.runCatching(service::send).onFailure {
-                    eventRouter.safeSend(
-                        Event.start().endTimestamp()
-                            .status(Event.Status.FAILED)
-                            .type("SendError")
-                            .name("Cannot send message: ${msg.metadata}")
-                            .apply {
-                                var ex: Throwable? = it
-                                while(ex != null) {
-                                    bodyData(EventUtils.createMessageBean(ex.message))
-                                    ex = ex.cause
-                                }
-                            },
-                        if (msg.hasParentEventId()) msg.parentEventId.id else rootEvent.id
-                    )
-                }.onSuccess {
-                    if (configuration.enableMessageSendingEvent) {
-                        eventRouter.safeSend(
-                            Event.start().endTimestamp()
-                                .status(Event.Status.PASSED)
-                                .type("Message")
-                                .name("Message was sent:  ${msg.metadata.id.sequence}")
-                                .apply {
-                                    messageID(msg.metadata.id)
-                                },
-                            if (msg.hasParentEventId()) msg.parentEventId.id else rootEvent.id
-                        )
+                rawRouter.subscribeAll { _, rawBatch ->
+                    rawBatch.messagesList.forEach { msg ->
+                        msg.runCatching(service::send).onFailure {
+                            eventRouter.safeSend(
+                                Event.start().endTimestamp()
+                                    .status(Event.Status.FAILED)
+                                    .type("SendError")
+                                    .name("Cannot send message: ${msg.metadata}")
+                                    .apply {
+                                        var ex: Throwable? = it
+                                        while(ex != null) {
+                                            bodyData(EventUtils.createMessageBean(ex.message))
+                                            ex = ex.cause
+                                        }
+                                    },
+                                if (msg.hasParentEventId()) msg.parentEventId.id else rootEvent.id
+                            )
+                        }.onSuccess {
+                            if (configuration.enableMessageSendingEvent) {
+                                eventRouter.safeSend(
+                                    Event.start().endTimestamp()
+                                        .status(Event.Status.PASSED)
+                                        .type("Message")
+                                        .name("Message was sent:  ${msg.metadata.id.sequence}")
+                                        .apply {
+                                            messageID(msg.metadata.id)
+                                        },
+                                    if (msg.hasParentEventId()) msg.parentEventId.id else rootEvent.id
+                                )
+                            }
+                        }
                     }
                 }
+                service.start()
             }
         }
-
-        service.start()
 
         readiness = true
 

@@ -33,7 +33,7 @@ class MessagePublisherTest {
     @Test
     internal fun `test publisher`() {
         val msg = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Msg></Msg>"
-        val alias = "test-alias"
+        val alias = "test_alias"
 
         val publisher = MessagePublisher(alias, 1000, mockRouter)
         val instant = Instant.now()
