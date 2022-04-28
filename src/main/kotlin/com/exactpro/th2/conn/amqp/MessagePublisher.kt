@@ -31,7 +31,6 @@ import io.prometheus.client.Counter
 import mu.KotlinLogging
 import java.time.Instant
 import java.util.EnumMap
-import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
@@ -40,10 +39,10 @@ class MessagePublisher(
     private val sessionAlias: String,
     drainIntervalMills: Long,
     private val rawRouter: MessageRouter<RawMessageBatch>,
-    private val counters: Map<Direction, Counter>
+    private val counters: Map<Direction, Counter>,
+    private val executor: ScheduledExecutorService
 ) : AutoCloseable {
 
-    private val executor: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor()
     private val directionStates: Map<Direction, DirectionState> = EnumMap<Direction, DirectionState>(Direction::class.java).apply {
         put(Direction.FIRST, DirectionState())
         put(Direction.SECOND, DirectionState())

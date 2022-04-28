@@ -32,10 +32,13 @@ import com.exactpro.th2.conn.amqp.configuration.Configuration
 import com.exactpro.th2.conn.amqp.connservice.ConnServiceImpl
 import io.prometheus.client.Counter
 import mu.KotlinLogging
+import java.lang.IllegalArgumentException
 import java.time.Instant
 import java.util.Deque
 import java.util.EnumMap
 import java.util.concurrent.ConcurrentLinkedDeque
+import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.locks.Condition
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.thread
@@ -71,7 +74,7 @@ fun main(args: Array<String>) {
         )
 
         val rawRouter: MessageRouter<RawMessageBatch> = factory.messageRouterRawBatch
-        val services: ArrayList<ConnService> = arrayListOf()
+        val aliasToService = HashMap<String, ConnService>()
         val counters: Map<Direction, Counter> = EnumMap<Direction, Counter>(Direction::class.java).apply {
             put(Direction.FIRST, Counter.build().apply {
                 name("th2_conn_incoming_msg_quantity")
@@ -84,13 +87,15 @@ fun main(args: Array<String>) {
                 help("Quantity of outgoing messages from conn")
             }.register())
         }
+        val executor: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor()
         configuration.sessions.forEach { connParameters ->
             run {
                 val publisher = MessagePublisher(
                     connParameters.sessionAlias,
                     configuration.drainIntervalMills,
                     rawRouter,
-                    counters
+                    counters,
+                    executor
                 )
                 resources += publisher
 
@@ -103,17 +108,15 @@ fun main(args: Array<String>) {
                     }
                 )
                 resources += service
-                services.add(service);
+                aliasToService[connParameters.sessionAlias] = service
             }
         }
         rawRouter.subscribeAll { _, rawBatch ->
             rawBatch.messagesList.forEach { msg ->
                 msg.runCatching {
-                    services.forEach { service ->
-                        if (service.getServiceSessionAlias() == msg.metadata.id.connectionId.sessionAlias) {
-                            service.send(msg)
-                        }
-                    }
+                    val alias = msg.metadata.id.connectionId.sessionAlias
+                    aliasToService.getOrElse(alias,
+                        {throw IllegalArgumentException("Can't find service by alias {$alias}")})
                 }.onFailure {
                     eventRouter.safeSend(
                         Event.start().endTimestamp()
@@ -145,7 +148,7 @@ fun main(args: Array<String>) {
                 }
             }
         }
-        services.forEach { service -> service.start() }
+        aliasToService.forEach { (_, service) -> service.start() }
         readiness = true
 
         awaitShutdown(lock, condition)

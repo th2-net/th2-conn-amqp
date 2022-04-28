@@ -29,6 +29,8 @@ import org.mockito.kotlin.check
 import org.mockito.kotlin.verify
 import java.time.Instant
 import java.util.EnumMap
+import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledExecutorService
 
 class MessagePublisherTest {
 
@@ -48,7 +50,8 @@ class MessagePublisherTest {
                 help("Quantity of outgoing messages from conn")
             }.register())
         }
-        val publisher = MessagePublisher(alias, 1000, mockRouter, counters)
+        val executor: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor()
+        val publisher = MessagePublisher(alias, 1000, mockRouter, counters, executor)
         val instant = Instant.now()
         val timestamp = instant.toTimestamp()
         publisher.onMessage(Direction.FIRST, MessageHolder(msg.toByteArray(), instant, messageProperties = hashMapOf("sessionAlias" to alias)))
