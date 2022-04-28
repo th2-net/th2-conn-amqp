@@ -20,6 +20,7 @@ package com.exactpro.th2.conn.amqp
 
 import com.exactpro.th2.common.event.Event
 import com.exactpro.th2.common.event.EventUtils
+import com.exactpro.th2.common.grpc.Direction
 import com.exactpro.th2.common.grpc.EventBatch
 import com.exactpro.th2.common.grpc.RawMessageBatch
 import com.exactpro.th2.common.metrics.liveness
@@ -29,9 +30,11 @@ import com.exactpro.th2.common.schema.message.MessageRouter
 import com.exactpro.th2.conn.amqp.connservice.ConnService
 import com.exactpro.th2.conn.amqp.configuration.Configuration
 import com.exactpro.th2.conn.amqp.connservice.ConnServiceImpl
+import io.prometheus.client.Counter
 import mu.KotlinLogging
 import java.time.Instant
 import java.util.Deque
+import java.util.EnumMap
 import java.util.concurrent.ConcurrentLinkedDeque
 import java.util.concurrent.locks.Condition
 import java.util.concurrent.locks.ReentrantLock
@@ -68,12 +71,26 @@ fun main(args: Array<String>) {
         )
 
         val rawRouter: MessageRouter<RawMessageBatch> = factory.messageRouterRawBatch
-        configuration.parameters.forEach{connParameters ->
+        val services: ArrayList<ConnService> = arrayListOf()
+        val counters: Map<Direction, Counter> = EnumMap<Direction, Counter>(Direction::class.java).apply {
+            put(Direction.FIRST, Counter.build().apply {
+                name("th2_conn_incoming_msg_quantity")
+                labelNames("session_alias")
+                help("Quantity of incoming messages to conn")
+            }.register())
+            put(Direction.SECOND, Counter.build().apply {
+                name("th2_conn_outgoing_msg_quantity")
+                labelNames("session_alias")
+                help("Quantity of outgoing messages from conn")
+            }.register())
+        }
+        configuration.sessions.forEach { connParameters ->
             run {
                 val publisher = MessagePublisher(
                     connParameters.sessionAlias,
                     configuration.drainIntervalMills,
-                    rawRouter
+                    rawRouter,
+                    counters
                 )
                 resources += publisher
 
@@ -86,44 +103,49 @@ fun main(args: Array<String>) {
                     }
                 )
                 resources += service
-
-                rawRouter.subscribeAll { _, rawBatch ->
-                    rawBatch.messagesList.forEach { msg ->
-                        msg.runCatching(service::send).onFailure {
-                            eventRouter.safeSend(
-                                Event.start().endTimestamp()
-                                    .status(Event.Status.FAILED)
-                                    .type("SendError")
-                                    .name("Cannot send message: ${msg.metadata}")
-                                    .apply {
-                                        var ex: Throwable? = it
-                                        while(ex != null) {
-                                            bodyData(EventUtils.createMessageBean(ex.message))
-                                            ex = ex.cause
-                                        }
-                                    },
-                                if (msg.hasParentEventId()) msg.parentEventId.id else rootEvent.id
-                            )
-                        }.onSuccess {
-                            if (configuration.enableMessageSendingEvent) {
-                                eventRouter.safeSend(
-                                    Event.start().endTimestamp()
-                                        .status(Event.Status.PASSED)
-                                        .type("Message")
-                                        .name("Message was sent:  ${msg.metadata.id.sequence}")
-                                        .apply {
-                                            messageID(msg.metadata.id)
-                                        },
-                                    if (msg.hasParentEventId()) msg.parentEventId.id else rootEvent.id
-                                )
-                            }
-                        }
-                    }
-                }
-                service.start()
+                services.add(service);
             }
         }
-
+        rawRouter.subscribeAll { _, rawBatch ->
+            rawBatch.messagesList.forEach { msg ->
+                msg.runCatching {
+                    services.forEach { service ->
+                        if (service.getServiceSessionAlias() == msg.metadata.id.connectionId.sessionAlias) {
+                            service.send(msg)
+                        }
+                    }
+                }.onFailure {
+                    eventRouter.safeSend(
+                        Event.start().endTimestamp()
+                            .status(Event.Status.FAILED)
+                            .type("SendError")
+                            .name("Cannot send message: ${msg.metadata}")
+                            .apply {
+                                var ex: Throwable? = it
+                                while (ex != null) {
+                                    bodyData(EventUtils.createMessageBean(ex.message))
+                                    ex = ex.cause
+                                }
+                            },
+                        if (msg.hasParentEventId()) msg.parentEventId.id else rootEvent.id
+                    )
+                }.onSuccess {
+                    if (configuration.enableMessageSendingEvent) {
+                        eventRouter.safeSend(
+                            Event.start().endTimestamp()
+                                .status(Event.Status.PASSED)
+                                .type("Message")
+                                .name("Message was sent:  ${msg.metadata.id.sequence}")
+                                .apply {
+                                    messageID(msg.metadata.id)
+                                },
+                            if (msg.hasParentEventId()) msg.parentEventId.id else rootEvent.id
+                        )
+                    }
+                }
+            }
+        }
+        services.forEach { service -> service.start() }
         readiness = true
 
         awaitShutdown(lock, condition)

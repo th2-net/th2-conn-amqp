@@ -37,7 +37,7 @@ spec:
   custom-config:
     drainIntervalMills: 1000
     rootEventName: ConnAmqp
-    parameters:
+    sessions:
     - 
       # sessionAlias:
       # initialContextFactory:

@@ -40,25 +40,13 @@ class MessagePublisher(
     private val sessionAlias: String,
     drainIntervalMills: Long,
     private val rawRouter: MessageRouter<RawMessageBatch>,
+    private val counters: Map<Direction, Counter>
 ) : AutoCloseable {
 
     private val executor: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor()
     private val directionStates: Map<Direction, DirectionState> = EnumMap<Direction, DirectionState>(Direction::class.java).apply {
         put(Direction.FIRST, DirectionState())
         put(Direction.SECOND, DirectionState())
-    }
-    private val counters: Map<Direction, Counter.Child> = EnumMap<Direction, Counter.Child>(Direction::class.java).apply {
-        // FIXME: use DEFAULT_SESSION_ALIAS_LABEL_NAME variable
-        put(Direction.FIRST, Counter.build().apply {
-            name("th2_conn_incoming_msg_quantity_$sessionAlias")
-            labelNames("session_alias")
-            help("Quantity of incoming messages to conn")
-        }.register().labels(sessionAlias))
-        put(Direction.SECOND, Counter.build().apply {
-            name("th2_conn_outgoing_msg_quantity_$sessionAlias")
-            labelNames("session_alias")
-            help("Quantity of outgoing messages from conn")
-        }.register().labels(sessionAlias))
     }
 
 
@@ -69,7 +57,7 @@ class MessagePublisher(
     fun onMessage(direction: Direction, holder: MessageHolder) {
         try {
             directionState(direction).addMessage(holder)
-            counters[direction]?.inc()
+            counters[direction]?.labels(sessionAlias)?.inc()
         } catch (ex: Exception) {
             LOGGER.error(ex) { "Cannot add message for direction $direction. ${holder.body.contentToString()}" }
         }

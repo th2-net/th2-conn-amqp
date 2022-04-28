@@ -59,6 +59,8 @@ class ConnServiceImpl(
         client.stop()
     }
 
+    override fun getServiceSessionAlias(): String = parameters.sessionAlias
+
     companion object {
         private fun ConnParameters.toMap(): Map<String, String> = mutableMapOf(
             Context.INITIAL_CONTEXT_FACTORY to initialContextFactory,

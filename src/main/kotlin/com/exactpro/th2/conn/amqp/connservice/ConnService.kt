@@ -64,4 +64,6 @@ abstract class ConnService(
             relatedMessages.forEach(this::messageID)
         }.apply(block).apply(onEvent)
     }
+
+    abstract fun getServiceSessionAlias(): String
 }

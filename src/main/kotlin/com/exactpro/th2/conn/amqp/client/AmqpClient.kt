@@ -36,6 +36,7 @@ typealias Config = Map<String, String>
 @NotThreadSafe
 class AmqpClient(config: Config, val errorReporter: (Throwable) -> Unit) : IClient {
 
+    private val sessionAliasPropertyName = "sessionAlias"
     private val consumer: JmsConsumer
     private val jmsContext: JmsContext
     private val connection: JmsConnection
@@ -46,7 +47,6 @@ class AmqpClient(config: Config, val errorReporter: (Throwable) -> Unit) : IClie
 
     init {
         val properties = Properties().apply { putAll(config) }
-        val sessionAliasPropertyName = "sessionAlias"
         InitialContext(properties).let { context ->
             val connectionFactory = context.lookup("factorylookup") as ConnectionFactory
             connection = connectionFactory.createConnection() as JmsConnection
@@ -64,23 +64,19 @@ class AmqpClient(config: Config, val errorReporter: (Throwable) -> Unit) : IClie
         LOGGER.info("Queue consumer created to read data form the Queue:  {}", receiveDestination)
 
         producer = jmsContext.createProducer() as JmsProducer
-
-        producer.setProperty(sessionAliasPropertyName, sessionAlias);
     }
 
     override fun setMessageListener(callback: (ByteArray) -> Unit) {
         LOGGER.debug("Set an asynchronous queue listener")
         consumer.messageListener = MessageListener { message: Message ->
-            if (sessionAlias == message.getStringProperty("sessionAlias")) {
-                LOGGER.debug("Message received from the Queue:  {}", receiveDestination.toString())
-                message.runCatching(Companion::toBytes).onSuccess(callback).onFailure {
-                    LOGGER.error(it) {"Error while processing incoming message"}
-                    errorReporter(it)
-                }
-                message.runCatching(Message::acknowledge).onFailure {
-                    LOGGER.error(it) {"Error while acknowledging received message"}
-                    errorReporter(it)
-                }
+            LOGGER.debug("Message received from the Queue:  {}", receiveDestination.toString())
+            message.runCatching(Companion::toBytes).onSuccess(callback).onFailure {
+                LOGGER.error(it) { "Error while processing incoming message" }
+                errorReporter(it)
+            }
+            message.runCatching(Message::acknowledge).onFailure {
+                LOGGER.error(it) { "Error while acknowledging received message" }
+                errorReporter(it)
             }
         }
     }

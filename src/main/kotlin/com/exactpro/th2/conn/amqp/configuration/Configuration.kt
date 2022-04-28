@@ -20,7 +20,7 @@ class Configuration(
     val enableMessageSendingEvent: Boolean = true,
     val drainIntervalMills: Long = 1000L,
     val rootEventName: String = "ConnAmqp",
-    val parameters: List<ConnParameters>
+    val sessions: List<ConnParameters>
 )
 
 class ConnParameters(
