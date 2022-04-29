@@ -22,12 +22,11 @@ import com.exactpro.th2.common.grpc.MessageID
 import com.exactpro.th2.common.grpc.RawMessage
 import com.exactpro.th2.common.grpc.RawMessageBatch
 import com.exactpro.th2.common.grpc.RawMessageMetadata
+import com.exactpro.th2.common.message.toTimestamp
 import com.exactpro.th2.common.schema.message.MessageRouter
 import com.exactpro.th2.common.schema.message.QueueAttribute
-import com.exactpro.th2.common.message.toTimestamp
 import com.google.protobuf.ByteString
 import com.google.protobuf.TextFormat
-import io.prometheus.client.Counter
 import mu.KotlinLogging
 import java.time.Instant
 import java.util.EnumMap
@@ -39,7 +38,6 @@ class MessagePublisher(
     private val sessionAlias: String,
     drainIntervalMills: Long,
     private val rawRouter: MessageRouter<RawMessageBatch>,
-    private val counters: Map<Direction, Counter>,
     private val executor: ScheduledExecutorService
 ) : AutoCloseable {
 
@@ -56,7 +54,6 @@ class MessagePublisher(
     fun onMessage(direction: Direction, holder: MessageHolder) {
         try {
             directionState(direction).addMessage(holder)
-            counters[direction]?.labels(sessionAlias)?.inc()
         } catch (ex: Exception) {
             LOGGER.error(ex) { "Cannot add message for direction $direction. ${holder.body.contentToString()}" }
         }

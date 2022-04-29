@@ -20,22 +20,18 @@ package com.exactpro.th2.conn.amqp
 
 import com.exactpro.th2.common.event.Event
 import com.exactpro.th2.common.event.EventUtils
-import com.exactpro.th2.common.grpc.Direction
 import com.exactpro.th2.common.grpc.EventBatch
 import com.exactpro.th2.common.grpc.RawMessageBatch
 import com.exactpro.th2.common.metrics.liveness
 import com.exactpro.th2.common.metrics.readiness
 import com.exactpro.th2.common.schema.factory.CommonFactory
 import com.exactpro.th2.common.schema.message.MessageRouter
-import com.exactpro.th2.conn.amqp.connservice.ConnService
 import com.exactpro.th2.conn.amqp.configuration.Configuration
+import com.exactpro.th2.conn.amqp.connservice.ConnService
 import com.exactpro.th2.conn.amqp.connservice.ConnServiceImpl
-import io.prometheus.client.Counter
 import mu.KotlinLogging
-import java.lang.IllegalArgumentException
 import java.time.Instant
 import java.util.Deque
-import java.util.EnumMap
 import java.util.concurrent.ConcurrentLinkedDeque
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
@@ -75,18 +71,6 @@ fun main(args: Array<String>) {
 
         val rawRouter: MessageRouter<RawMessageBatch> = factory.messageRouterRawBatch
         val aliasToService = HashMap<String, ConnService>()
-        val counters: Map<Direction, Counter> = EnumMap<Direction, Counter>(Direction::class.java).apply {
-            put(Direction.FIRST, Counter.build().apply {
-                name("th2_conn_incoming_msg_quantity")
-                labelNames("session_alias")
-                help("Quantity of incoming messages to conn")
-            }.register())
-            put(Direction.SECOND, Counter.build().apply {
-                name("th2_conn_outgoing_msg_quantity")
-                labelNames("session_alias")
-                help("Quantity of outgoing messages from conn")
-            }.register())
-        }
         val executor: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor()
         configuration.sessions.forEach { connParameters ->
             run {
@@ -94,7 +78,6 @@ fun main(args: Array<String>) {
                     connParameters.sessionAlias,
                     configuration.drainIntervalMills,
                     rawRouter,
-                    counters,
                     executor
                 )
                 resources += publisher
@@ -115,8 +98,10 @@ fun main(args: Array<String>) {
             rawBatch.messagesList.forEach { msg ->
                 msg.runCatching {
                     val alias = msg.metadata.id.connectionId.sessionAlias
-                    aliasToService.getOrElse(alias,
-                        {throw IllegalArgumentException("Can't find service by alias {$alias}")})
+                    aliasToService.getOrElse(
+                        alias,
+                        {throw IllegalArgumentException("Can't find service by alias {$alias}")}
+                    ).send(msg)
                 }.onFailure {
                     eventRouter.safeSend(
                         Event.start().endTimestamp()

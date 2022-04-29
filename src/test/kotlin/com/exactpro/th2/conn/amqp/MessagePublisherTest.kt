@@ -38,20 +38,8 @@ class MessagePublisherTest {
     internal fun `test publisher`() {
         val msg = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Msg></Msg>"
         val alias = "test_alias"
-        val counters: Map<Direction, Counter> = EnumMap<Direction, Counter>(Direction::class.java).apply {
-            put(Direction.FIRST, Counter.build().apply {
-                name("th2_conn_incoming_msg_quantity")
-                labelNames("session_alias")
-                help("Quantity of incoming messages to conn")
-            }.register())
-            put(Direction.SECOND, Counter.build().apply {
-                name("th2_conn_outgoing_msg_quantity")
-                labelNames("session_alias")
-                help("Quantity of outgoing messages from conn")
-            }.register())
-        }
         val executor: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor()
-        val publisher = MessagePublisher(alias, 1000, mockRouter, counters, executor)
+        val publisher = MessagePublisher(alias, 1000, mockRouter, executor)
         val instant = Instant.now()
         val timestamp = instant.toTimestamp()
         publisher.onMessage(Direction.FIRST, MessageHolder(msg.toByteArray(), instant, messageProperties = hashMapOf("sessionAlias" to alias)))

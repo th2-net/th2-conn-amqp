@@ -36,14 +36,12 @@ typealias Config = Map<String, String>
 @NotThreadSafe
 class AmqpClient(config: Config, val errorReporter: (Throwable) -> Unit) : IClient {
 
-    private val sessionAliasPropertyName = "sessionAlias"
     private val consumer: JmsConsumer
     private val jmsContext: JmsContext
     private val connection: JmsConnection
     private val producer: JmsProducer
     private val sendDestination: Destination
     private val receiveDestination: Destination
-    private val sessionAlias: String
 
     init {
         val properties = Properties().apply { putAll(config) }
@@ -56,12 +54,11 @@ class AmqpClient(config: Config, val errorReporter: (Throwable) -> Unit) : IClie
             receiveDestination = context.lookup("receiveQueue") as Destination
         }
 
-        sessionAlias = properties[sessionAliasPropertyName] as String
         jmsContext.start()
         LOGGER.info("Connected to amqp broker successfully")
 
         consumer = jmsContext.createConsumer(receiveDestination) as JmsConsumer
-        LOGGER.info("Queue consumer created to read data form the Queue:  {}", receiveDestination)
+        LOGGER.info("Queue consumer created to read data form the Queue:  $receiveDestination")
 
         producer = jmsContext.createProducer() as JmsProducer
     }
@@ -69,7 +66,7 @@ class AmqpClient(config: Config, val errorReporter: (Throwable) -> Unit) : IClie
     override fun setMessageListener(callback: (ByteArray) -> Unit) {
         LOGGER.debug("Set an asynchronous queue listener")
         consumer.messageListener = MessageListener { message: Message ->
-            LOGGER.debug("Message received from the Queue:  {}", receiveDestination.toString())
+            LOGGER.debug("Message received from the Queue:  $receiveDestination")
             message.runCatching(Companion::toBytes).onSuccess(callback).onFailure {
                 LOGGER.error(it) { "Error while processing incoming message" }
                 errorReporter(it)
