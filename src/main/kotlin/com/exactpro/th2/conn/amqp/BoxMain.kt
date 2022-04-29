@@ -101,7 +101,7 @@ fun main(args: Array<String>) {
                     aliasToService.getOrElse(
                         alias,
                         {throw IllegalArgumentException("Can't find service by alias {$alias}")}
-                    ).send(msg)
+                    ).send(this)
                 }.onFailure {
                     eventRouter.safeSend(
                         Event.start().endTimestamp()
