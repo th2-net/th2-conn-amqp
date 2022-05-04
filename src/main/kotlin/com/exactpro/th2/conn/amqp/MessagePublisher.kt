@@ -22,14 +22,16 @@ import com.exactpro.th2.common.grpc.MessageID
 import com.exactpro.th2.common.grpc.RawMessage
 import com.exactpro.th2.common.grpc.RawMessageBatch
 import com.exactpro.th2.common.grpc.RawMessageMetadata
-import com.exactpro.th2.common.message.toTimestamp
 import com.exactpro.th2.common.schema.message.MessageRouter
 import com.exactpro.th2.common.schema.message.QueueAttribute
+import com.exactpro.th2.common.message.toTimestamp
 import com.google.protobuf.ByteString
 import com.google.protobuf.TextFormat
+import io.prometheus.client.Counter
 import mu.KotlinLogging
 import java.time.Instant
 import java.util.EnumMap
+import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
@@ -38,12 +40,25 @@ class MessagePublisher(
     private val sessionAlias: String,
     drainIntervalMills: Long,
     private val rawRouter: MessageRouter<RawMessageBatch>,
-    private val executor: ScheduledExecutorService
 ) : AutoCloseable {
 
+    private val executor: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor()
     private val directionStates: Map<Direction, DirectionState> = EnumMap<Direction, DirectionState>(Direction::class.java).apply {
         put(Direction.FIRST, DirectionState())
         put(Direction.SECOND, DirectionState())
+    }
+    private val counters: Map<Direction, Counter.Child> = EnumMap<Direction, Counter.Child>(Direction::class.java).apply {
+        // FIXME: use DEFAULT_SESSION_ALIAS_LABEL_NAME variable
+        put(Direction.FIRST, Counter.build().apply {
+            name("th2_conn_incoming_msg_quantity")
+            labelNames("session_alias")
+            help("Quantity of incoming messages to conn")
+        }.register().labels(sessionAlias))
+        put(Direction.SECOND, Counter.build().apply {
+            name("th2_conn_outgoing_msg_quantity")
+            labelNames("session_alias")
+            help("Quantity of outgoing messages from conn")
+        }.register().labels(sessionAlias))
     }
 
 
@@ -54,6 +69,7 @@ class MessagePublisher(
     fun onMessage(direction: Direction, holder: MessageHolder) {
         try {
             directionState(direction).addMessage(holder)
+            counters[direction]?.inc()
         } catch (ex: Exception) {
             LOGGER.error(ex) { "Cannot add message for direction $direction. ${holder.body.contentToString()}" }
         }

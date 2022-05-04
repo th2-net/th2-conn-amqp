@@ -58,13 +58,13 @@ class ConnServiceImpl(
         logger.info { "Closing the conn" }
         client.stop()
     }
+
     companion object {
         private fun ConnParameters.toMap(): Map<String, String> = mutableMapOf(
             Context.INITIAL_CONTEXT_FACTORY to initialContextFactory,
             "connectionfactory.factorylookup" to factorylookup,
             "queue.sendQueue" to sendQueue,
-            "queue.receiveQueue" to receiveQueue,
-            "sessionAlias" to sessionAlias
+            "queue.receiveQueue" to receiveQueue
         )
     }
 }

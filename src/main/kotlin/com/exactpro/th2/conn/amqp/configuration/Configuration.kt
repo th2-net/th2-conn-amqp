@@ -17,14 +17,14 @@
 package com.exactpro.th2.conn.amqp.configuration
 
 class Configuration(
+    val sessionAlias: String,
     val enableMessageSendingEvent: Boolean = true,
     val drainIntervalMills: Long = 1000L,
     val rootEventName: String = "ConnAmqp",
-    val sessions: List<ConnParameters>
+    val parameters: ConnParameters
 )
 
 class ConnParameters(
-    val sessionAlias: String,
     val initialContextFactory: String,
     val factorylookup: String,
     val sendQueue: String,
