@@ -26,13 +26,15 @@ import com.exactpro.th2.common.metrics.liveness
 import com.exactpro.th2.common.metrics.readiness
 import com.exactpro.th2.common.schema.factory.CommonFactory
 import com.exactpro.th2.common.schema.message.MessageRouter
-import com.exactpro.th2.conn.amqp.connservice.ConnService
 import com.exactpro.th2.conn.amqp.configuration.Configuration
+import com.exactpro.th2.conn.amqp.connservice.ConnService
 import com.exactpro.th2.conn.amqp.connservice.ConnServiceImpl
 import mu.KotlinLogging
 import java.time.Instant
 import java.util.Deque
 import java.util.concurrent.ConcurrentLinkedDeque
+import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.locks.Condition
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.thread
@@ -68,26 +70,39 @@ fun main(args: Array<String>) {
         )
 
         val rawRouter: MessageRouter<RawMessageBatch> = factory.messageRouterRawBatch
+        val aliasToService = HashMap<String, ConnService>()
+        val executor: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor()
+        configuration.sessions.forEach { connParameters ->
+            run {
+                val publisher = MessagePublisher(
+                    connParameters.sessionAlias,
+                    configuration.drainIntervalMills,
+                    rawRouter,
+                    executor
+                )
+                resources += publisher
 
-        val publisher = MessagePublisher(
-            configuration.sessionAlias,
-            configuration.drainIntervalMills,
-            rawRouter
-        )
-        resources += publisher
+                val service: ConnService = ConnServiceImpl(
+                    parameters = connParameters,
+                    onMessage = publisher::onMessage,
+                    onEvent = { event ->
 
-        val service: ConnService = ConnServiceImpl(
-            parameters = configuration.parameters,
-            onMessage = publisher::onMessage,
-            onEvent = { event ->
-                eventRouter.safeSend(event, rootEvent.id)
+                        eventRouter.safeSend(event, rootEvent.id)
+                    }
+                )
+                resources += service
+                aliasToService[connParameters.sessionAlias] = service
             }
-        )
-        resources += service
-
+        }
         rawRouter.subscribeAll { _, rawBatch ->
             rawBatch.messagesList.forEach { msg ->
-                msg.runCatching(service::send).onFailure {
+                msg.runCatching {
+                    val alias = msg.metadata.id.connectionId.sessionAlias
+                    aliasToService.getOrElse(
+                        alias,
+                        {throw IllegalArgumentException("Can't find service by alias {$alias}")}
+                    ).send(this)
+                }.onFailure {
                     eventRouter.safeSend(
                         Event.start().endTimestamp()
                             .status(Event.Status.FAILED)
@@ -95,7 +110,7 @@ fun main(args: Array<String>) {
                             .name("Cannot send message: ${msg.metadata}")
                             .apply {
                                 var ex: Throwable? = it
-                                while(ex != null) {
+                                while (ex != null) {
                                     bodyData(EventUtils.createMessageBean(ex.message))
                                     ex = ex.cause
                                 }
@@ -118,9 +133,7 @@ fun main(args: Array<String>) {
                 }
             }
         }
-
-        service.start()
-
+        aliasToService.forEach { (_, service) -> service.start() }
         readiness = true
 
         awaitShutdown(lock, condition)

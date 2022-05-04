@@ -45,7 +45,6 @@ class AmqpClient(config: Config, val errorReporter: (Throwable) -> Unit) : IClie
 
     init {
         val properties = Properties().apply { putAll(config) }
-
         InitialContext(properties).let { context ->
             val connectionFactory = context.lookup("factorylookup") as ConnectionFactory
             connection = connectionFactory.createConnection() as JmsConnection
@@ -59,7 +58,7 @@ class AmqpClient(config: Config, val errorReporter: (Throwable) -> Unit) : IClie
         LOGGER.info("Connected to amqp broker successfully")
 
         consumer = jmsContext.createConsumer(receiveDestination) as JmsConsumer
-        LOGGER.info("Queue consumer created to read data form the Queue:  {}", receiveDestination)
+        LOGGER.info("Queue consumer created to read data form the Queue:  $receiveDestination")
 
         producer = jmsContext.createProducer() as JmsProducer
     }
@@ -67,13 +66,13 @@ class AmqpClient(config: Config, val errorReporter: (Throwable) -> Unit) : IClie
     override fun setMessageListener(callback: (ByteArray) -> Unit) {
         LOGGER.debug("Set an asynchronous queue listener")
         consumer.messageListener = MessageListener { message: Message ->
-            LOGGER.debug("Message received from the Queue:  {}", receiveDestination)
+            LOGGER.debug("Message received from the Queue:  $receiveDestination")
             message.runCatching(Companion::toBytes).onSuccess(callback).onFailure {
-                LOGGER.error(it) {"Error while processing incoming message"}
+                LOGGER.error(it) { "Error while processing incoming message" }
                 errorReporter(it)
             }
             message.runCatching(Message::acknowledge).onFailure {
-                LOGGER.error(it) {"Error while acknowledging received message"}
+                LOGGER.error(it) { "Error while acknowledging received message" }
                 errorReporter(it)
             }
         }
