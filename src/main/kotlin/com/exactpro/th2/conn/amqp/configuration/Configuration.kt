@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2021 Exactpro (Exactpro Systems Limited)
+ * Copyright 2020-2022 Exactpro (Exactpro Systems Limited)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,20 +14,19 @@
  * limitations under the License.
  */
 
-package com.exactpro.th2.conn.ampq
+package com.exactpro.th2.conn.amqp.configuration
 
-import mu.KotlinLogging
-import org.junit.jupiter.api.Assertions.*
-import org.junit.jupiter.api.Test
+class Configuration(
+    val enableMessageSendingEvent: Boolean = true,
+    val drainIntervalMills: Long = 1000L,
+    val rootEventName: String = "ConnAmqp",
+    val sessions: List<ConnParameters>
+)
 
-internal class TestBoxMain {
-    @Test
-    internal fun `test your box`() {
-        LOGGER.info { "Test 1 equals 1" }
-        assertEquals(1, 1)
-    }
-
-    companion object {
-        private val LOGGER = KotlinLogging.logger { }
-    }
-}
+class ConnParameters(
+    val sessionAlias: String,
+    val initialContextFactory: String,
+    val factorylookup: String,
+    val sendQueue: String,
+    val receiveQueue: String
+)

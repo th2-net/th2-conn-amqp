@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2021 Exactpro (Exactpro Systems Limited)
+ * Copyright 2020-2022 Exactpro (Exactpro Systems Limited)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.exactpro.th2.conn.ampq
+package com.exactpro.th2.conn.amqp
 
 import com.exactpro.th2.common.grpc.ConnectionID
 import com.exactpro.th2.common.grpc.Direction
@@ -22,27 +22,30 @@ import com.exactpro.th2.common.grpc.MessageID
 import com.exactpro.th2.common.grpc.RawMessage
 import com.exactpro.th2.common.grpc.RawMessageBatch
 import com.exactpro.th2.common.grpc.RawMessageMetadata
+import com.exactpro.th2.common.message.toTimestamp
 import com.exactpro.th2.common.schema.message.MessageRouter
 import com.exactpro.th2.common.schema.message.QueueAttribute
 import com.google.protobuf.ByteString
+import com.google.protobuf.TextFormat
 import mu.KotlinLogging
 import java.time.Instant
 import java.util.EnumMap
-import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
 
 class MessagePublisher(
     private val sessionAlias: String,
-    private val drainIntervalMills: Long,
+    drainIntervalMills: Long,
     private val rawRouter: MessageRouter<RawMessageBatch>,
+    private val executor: ScheduledExecutorService
 ) : AutoCloseable {
-    private val executor: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor()
+
     private val directionStates: Map<Direction, DirectionState> = EnumMap<Direction, DirectionState>(Direction::class.java).apply {
         put(Direction.FIRST, DirectionState())
         put(Direction.SECOND, DirectionState())
     }
+
 
     init {
         executor.scheduleAtFixedRate(this::drainMessages, drainIntervalMills, drainIntervalMills, TimeUnit.MILLISECONDS)
@@ -66,34 +69,41 @@ class MessagePublisher(
                 val builder = RawMessageBatch.newBuilder()
                 for (toPublish in listToPublish) {
                     builder.addMessages(
-                        RawMessage.newBuilder()
-                            .setBody(ByteString.copyFrom(toPublish.body))
-                            .setMetadata(createMetadata(direction, firstSequence++, toPublish.messageProperties))
+                        RawMessage.newBuilder().apply {
+                            body = ByteString.copyFrom(toPublish.body)
+                            metadata = createMetadata(direction, firstSequence++, toPublish.messageProperties, toPublish.sendTime)
+                            LOGGER.trace { "Publishing message: ${TextFormat.shortDebugString(this)}" }
+                        }
                     )
                 }
-                rawRouter.sendAll(builder.build(), direction.queueAttribute.toString())
+                builder.build().let { messages ->
+                    rawRouter.sendAll(messages, direction.queueAttribute.toString())
+                    LOGGER.debug { "Published batch with ${messages.messagesCount} messages" }
+                }
+
             } catch (ex: Exception) {
                 LOGGER.error(ex) { "Cannot drain events for $direction" }
             }
         }
     }
 
-    private fun createMetadata(direction: Direction, sequence: Long, messageProperties: Map<String, String>): RawMessageMetadata {
-        return RawMessageMetadata.newBuilder()
-            .setId(MessageID.newBuilder()
+    private fun createMetadata(direction: Direction, sequence: Long, messageProperties: Map<String, String>, instant: Instant): RawMessageMetadata {
+        return RawMessageMetadata.newBuilder().apply {
+            setId(MessageID.newBuilder()
                 .setDirection(direction)
                 .setSequence(sequence)
                 .setConnectionId(ConnectionID.newBuilder().setSessionAlias(sessionAlias))
             )
-            .putAllProperties(messageProperties)
-            .build()
+            timestamp = instant.toTimestamp()
+            putAllProperties(messageProperties)
+        }.build()
     }
 
     private val Direction.queueAttribute: QueueAttribute
         get() = when (this) {
             Direction.FIRST -> QueueAttribute.FIRST
             Direction.SECOND -> QueueAttribute.SECOND
-            else -> throw IllegalArgumentException("Unsupported direction: $this")
+            else -> error("Unsupported direction: $this")
         }
 
     private fun getFirstBatchSequence(direction: Direction, batchSize: Long): Long =
@@ -119,24 +129,20 @@ class MessagePublisher(
 
     private class DirectionState {
         private val sequence = AtomicLong(initSequence())
-        private val messagesToPublish: MutableList<MessageHolder> = arrayListOf()
+        private val messagesToPublish = mutableListOf<MessageHolder>()
 
         fun firstBatchSequence(batchSize: Long): Long = sequence.getAndAdd(batchSize)
 
-        fun addMessage(holder: MessageHolder) {
-            synchronized(messagesToPublish) {
-                messagesToPublish += holder
-            }
+        fun addMessage(holder: MessageHolder) = synchronized(messagesToPublish) {
+            messagesToPublish += holder
         }
 
-        fun drain(): List<MessageHolder> {
-            return synchronized(messagesToPublish) {
-                if (messagesToPublish.isEmpty()) return@synchronized emptyList()
+        fun drain() = synchronized(messagesToPublish) {
+            if (messagesToPublish.isEmpty()) emptyList<MessageHolder>()
 
-                val result = messagesToPublish.toList()
-                messagesToPublish.clear()
-                result
-            }
+            val result = messagesToPublish.toList()
+            messagesToPublish.clear()
+            result
         }
     }
 
@@ -144,5 +150,6 @@ class MessagePublisher(
         private val LOGGER = KotlinLogging.logger { }
 
         private fun initSequence(): Long = Instant.now().run { epochSecond * 1_000_000_000 + nano }
+
     }
 }

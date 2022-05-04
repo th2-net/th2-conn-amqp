@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2021 Exactpro (Exactpro Systems Limited)
+ * Copyright 2020-2022 Exactpro (Exactpro Systems Limited)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,23 +16,25 @@
 
 @file:JvmName("BoxMain")
 
-package com.exactpro.th2.conn.ampq
+package com.exactpro.th2.conn.amqp
 
 import com.exactpro.th2.common.event.Event
 import com.exactpro.th2.common.event.EventUtils
 import com.exactpro.th2.common.grpc.EventBatch
-import com.exactpro.th2.common.grpc.MessageBatch
 import com.exactpro.th2.common.grpc.RawMessageBatch
 import com.exactpro.th2.common.metrics.liveness
 import com.exactpro.th2.common.metrics.readiness
 import com.exactpro.th2.common.schema.factory.CommonFactory
 import com.exactpro.th2.common.schema.message.MessageRouter
-import com.exactpro.th2.conn.ampq.impl.Configuration
-import com.exactpro.th2.conn.ampq.impl.ConnServiceImpl
+import com.exactpro.th2.conn.amqp.configuration.Configuration
+import com.exactpro.th2.conn.amqp.connservice.ConnService
+import com.exactpro.th2.conn.amqp.connservice.ConnServiceImpl
 import mu.KotlinLogging
 import java.time.Instant
 import java.util.Deque
 import java.util.concurrent.ConcurrentLinkedDeque
+import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.locks.Condition
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.thread
@@ -42,30 +44,16 @@ private val LOGGER = KotlinLogging.logger { }
 
 fun main(args: Array<String>) {
     LOGGER.info { "Starting the box" }
-    // Here is an entry point to the th2-box.
-
-    // Configure shutdown hook for closing all resources
-    // and the lock condition to await termination.
-    //
-    // If you use the logic that doesn't require additional threads
-    // and you can run everything on main thread
-    // you can omit the part with locks (but please keep the resources queue)
     val resources: Deque<AutoCloseable> = ConcurrentLinkedDeque()
     val lock = ReentrantLock()
     val condition: Condition = lock.newCondition()
     configureShutdownHook(resources, lock, condition)
 
     try {
-        // You need to initialize the CommonFactory
-
-        // You can use custom paths to each config that is required for the CommonFactory
-        // If args are empty the default path will be chosen.
         val factory = CommonFactory.createFromArguments(*args)
-        // do not forget to add resource to the resources queue
         resources += factory
-
-        // The BOX is alive
         liveness = true
+
         val configuration = factory.getCustomConfiguration(Configuration::class.java)
 
         val eventRouter = factory.eventBatchRouter
@@ -73,7 +61,7 @@ fun main(args: Array<String>) {
             .status(Event.Status.PASSED)
             .name("${configuration.rootEventName}_${Instant.now()}")
             .type("Microservice")
-            .bodyData(EventUtils.createMessageBean("Root event for the conn box"))
+            .bodyData(EventUtils.createMessageBean("Root event for the amqp conn box"))
 
         eventRouter.send(
             EventBatch.newBuilder()
@@ -81,51 +69,71 @@ fun main(args: Array<String>) {
                 .build()
         )
 
-        // Do additional initialization required to your logic
         val rawRouter: MessageRouter<RawMessageBatch> = factory.messageRouterRawBatch
-        val parsedRouter: MessageRouter<MessageBatch> = factory.messageRouterParsedBatch
+        val aliasToService = HashMap<String, ConnService>()
+        val executor: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor()
+        configuration.sessions.forEach { connParameters ->
+            run {
+                val publisher = MessagePublisher(
+                    connParameters.sessionAlias,
+                    configuration.drainIntervalMills,
+                    rawRouter,
+                    executor
+                )
+                resources += publisher
 
-        val publisher = MessagePublisher(
-            configuration.sessionAlias,
-            configuration.drainIntervalMills,
-            rawRouter
-        )
-        resources += publisher
+                val service: ConnService = ConnServiceImpl(
+                    parameters = connParameters,
+                    onMessage = publisher::onMessage,
+                    onEvent = { event ->
 
-        val service: ConnService = ConnServiceImpl(
-            parameters = configuration.parameters,
-            onMessage = publisher::onMessage,
-            onEvent = { event ->
-                eventRouter.safeSend(event, rootEvent.id)
+                        eventRouter.safeSend(event, rootEvent.id)
+                    }
+                )
+                resources += service
+                aliasToService[connParameters.sessionAlias] = service
             }
-        )
-        resources += service
-
-        parsedRouter.subscribeAll { _, parsedBatch ->
-            parsedBatch.messagesList.forEach { msg ->
-                runCatching { service.send(msg) }
-                    .onFailure {
+        }
+        rawRouter.subscribeAll { _, rawBatch ->
+            rawBatch.messagesList.forEach { msg ->
+                msg.runCatching {
+                    val alias = msg.metadata.id.connectionId.sessionAlias
+                    aliasToService.getOrElse(
+                        alias,
+                        {throw IllegalArgumentException("Can't find service by alias {$alias}")}
+                    ).send(this)
+                }.onFailure {
+                    eventRouter.safeSend(
+                        Event.start().endTimestamp()
+                            .status(Event.Status.FAILED)
+                            .type("SendError")
+                            .name("Cannot send message: ${msg.metadata}")
+                            .apply {
+                                var ex: Throwable? = it
+                                while (ex != null) {
+                                    bodyData(EventUtils.createMessageBean(ex.message))
+                                    ex = ex.cause
+                                }
+                            },
+                        if (msg.hasParentEventId()) msg.parentEventId.id else rootEvent.id
+                    )
+                }.onSuccess {
+                    if (configuration.enableMessageSendingEvent) {
                         eventRouter.safeSend(
                             Event.start().endTimestamp()
-                                .status(Event.Status.FAILED)
-                                .type("SendError")
-                                .name("Cannot send message ${msg.metadata.messageType}")
+                                .status(Event.Status.PASSED)
+                                .type("Message")
+                                .name("Message was sent:  ${msg.metadata.id.sequence}")
                                 .apply {
-                                    var ex: Throwable? = it
-                                    do {
-                                        ex?.apply { bodyData(EventUtils.createMessageBean(message)) }
-                                        ex = ex?.cause
-                                    } while (ex != null)
+                                    messageID(msg.metadata.id)
                                 },
                             if (msg.hasParentEventId()) msg.parentEventId.id else rootEvent.id
                         )
                     }
+                }
             }
         }
-
-        service.start()
-
-        // The BOX is ready to work
+        aliasToService.forEach { (_, service) -> service.start() }
         readiness = true
 
         awaitShutdown(lock, condition)
@@ -145,7 +153,7 @@ private fun configureShutdownHook(resources: Deque<AutoCloseable>, lock: Reentra
         start = false,
         name = "Shutdown hook"
     ) {
-        LOGGER.info { "Shutdown start" }
+        LOGGER.debug { "Shutdown start" }
         readiness = false
         try {
             lock.lock()
@@ -161,7 +169,7 @@ private fun configureShutdownHook(resources: Deque<AutoCloseable>, lock: Reentra
             }
         }
         liveness = false
-        LOGGER.info { "Shutdown end" }
+        LOGGER.debug { "Shutdown end" }
     })
 }
 
@@ -169,7 +177,7 @@ private fun configureShutdownHook(resources: Deque<AutoCloseable>, lock: Reentra
 private fun awaitShutdown(lock: ReentrantLock, condition: Condition) {
     try {
         lock.lock()
-        LOGGER.info { "Wait shutdown" }
+        LOGGER.debug { "Wait shutdown" }
         condition.await()
         LOGGER.info { "App shutdown" }
     } finally {

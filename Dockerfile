@@ -1,6 +1,8 @@
-FROM gradle:6.7-jdk11 AS build
+FROM gradle:6.6-jdk11 AS build
+ARG release_version
 COPY ./ .
-RUN gradle --no-daemon clean build dockerPrepare
+RUN gradle --no-daemon clean build dockerPrepare \
+    -Prelease_version=${release_version}
 
 FROM adoptopenjdk/openjdk11:alpine
 WORKDIR /home

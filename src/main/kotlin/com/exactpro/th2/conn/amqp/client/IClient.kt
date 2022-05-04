@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2021 Exactpro (Exactpro Systems Limited)
+ * Copyright 2020-2022 Exactpro (Exactpro Systems Limited)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,15 +14,12 @@
  * limitations under the License.
  */
 
-package com.exactpro.th2.conn.ampq.impl
+package com.exactpro.th2.conn.amqp.client
 
-class Configuration(
-    val sessionAlias: String,
-    val drainIntervalMills: Long = 1000L,
-    val rootEventName: String = "ConnTemplate",
-    val parameters: ConnParameters
-)
+typealias MessageBody = ByteArray
 
-class ConnParameters(
-    /*put you custom parameters here*/
-)
+sealed interface IClient {
+    fun setMessageListener(callback: (ByteArray) -> Unit)
+    fun send(data: MessageBody)
+    fun stop()
+}

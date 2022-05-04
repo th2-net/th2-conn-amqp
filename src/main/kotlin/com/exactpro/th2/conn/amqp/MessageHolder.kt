@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2021 Exactpro (Exactpro Systems Limited)
+ * Copyright 2020-2022 Exactpro (Exactpro Systems Limited)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,9 +14,8 @@
  * limitations under the License.
  */
 
-package com.exactpro.th2.conn.ampq
+package com.exactpro.th2.conn.amqp
 
-class MessageHolder(
-    val body: ByteArray,
-    val messageProperties: Map<String, String> = emptyMap()
-)
+import java.time.Instant
+
+data class MessageHolder(val body: ByteArray, val sendTime: Instant, val messageProperties: Map<String, String> = emptyMap())
