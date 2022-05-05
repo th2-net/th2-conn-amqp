@@ -77,9 +77,6 @@ fun main(args: Array<String>) {
         val executor: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor()
         configuration.sessions?.forEach { connParameters ->
             run {
-                if (connParameters.sessionAlias == null) {
-                    throw IllegalArgumentException("Connection parameter {sessionAlias} can't be blank")
-                }
                 val publisher = MessagePublisher(
                     connParameters.sessionAlias,
                     configuration.drainIntervalMills,
@@ -100,14 +97,14 @@ fun main(args: Array<String>) {
                 aliasToService[connParameters.sessionAlias] = service
                 service.start()
             }
-        } ?: throw java.lang.IllegalArgumentException("Connection parameters can't be blank. Use {sessions} or {parameters + sessioAlias}")
+        } ?: error("Connection parameters can't be blank. Use {sessions} or {parameters + sessioAlias}")
         rawRouter.subscribeAll { _, rawBatch ->
             rawBatch.messagesList.forEach { msg ->
                 msg.runCatching {
                     val alias = msg.metadata.id.connectionId.sessionAlias
                     aliasToService.getOrElse(
                         alias,
-                        { throw IllegalArgumentException("Can't find service by alias {$alias}") }
+                        { error("Can't find service by alias {$alias}") }
                     ).send(this)
                 }.onFailure {
                     eventRouter.safeSend(
@@ -183,7 +180,7 @@ private fun configureConnectionParameters(
     }
 }
 
-private fun sendError(eventRouter: MessageRouter<EventBatch>, reason: String?, rootEvent: Event) {
+private fun sendError(eventRouter: MessageRouter<EventBatch>, reason: String, rootEvent: Event) {
     eventRouter.safeSend(
         Event.start().endTimestamp()
             .status(Event.Status.FAILED)
@@ -191,7 +188,7 @@ private fun sendError(eventRouter: MessageRouter<EventBatch>, reason: String?, r
             .name(reason),
         rootEvent.id
     )
-    throw java.lang.IllegalArgumentException(reason)
+    error(reason)
 }
 
 private fun MessageRouter<EventBatch>.safeSend(event: Event, parentId: String?) {
