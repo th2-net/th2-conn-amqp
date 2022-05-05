@@ -59,7 +59,7 @@ class ConnServiceImpl(
         client.stop()
     }
     companion object {
-        private fun ConnParameters.toMap(): Map<String, String> = mutableMapOf(
+        private fun ConnParameters.toMap(): Map<String, String?> = mutableMapOf(
             Context.INITIAL_CONTEXT_FACTORY to initialContextFactory,
             "connectionfactory.factorylookup" to factorylookup,
             "queue.sendQueue" to sendQueue,

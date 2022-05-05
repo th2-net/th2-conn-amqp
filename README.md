@@ -12,8 +12,6 @@ The project contains the implementation of an AMQP connection **th2-conn-amqp**.
 > jks&trustStorePassword=&lt;trustStorePassword&gt;&keyStorePath=&lt;keyStorePath&gt;.
 > jks&keyStorePassword=&lt;keyStorePassword&gt;&saslMechanisms=EXTERNAL
 
-* username = \<username\>
-* password = \<password\>
 * sendQueue = \<sendQueue\>
 * receiveQueue = \<receiveQueue\>
 
@@ -50,6 +48,17 @@ spec:
       # factorylookup:
       # sendQueue:
       # receiveQueue:
+
+# Deprecated and will be deleted in the next major version.
+# Instead of sessions there is a way to use parameters with sessionAlias for single connection
+# But you can use only one of these ways
+  sessionAlias: session-alias
+  parameters:
+        # initialContextFactory:
+        # factorylookup:
+        # sendQueue:
+        # receiveQueue:
+
   pins:
     - name: in_raw
       connection-type: mq
@@ -61,3 +70,10 @@ spec:
       connection-type: mq
       attributes: ["send", "parsed", "subscribe"]
 ```
+
+# Release notes
+## 1.2.0
++ Add possibility of multiple connections
+    + Add list of sessions with connection parameters
+    + Backward compatibility remains
+    

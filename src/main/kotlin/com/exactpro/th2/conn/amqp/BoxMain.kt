@@ -27,6 +27,7 @@ import com.exactpro.th2.common.metrics.readiness
 import com.exactpro.th2.common.schema.factory.CommonFactory
 import com.exactpro.th2.common.schema.message.MessageRouter
 import com.exactpro.th2.conn.amqp.configuration.Configuration
+import com.exactpro.th2.conn.amqp.configuration.ConnParameters
 import com.exactpro.th2.conn.amqp.connservice.ConnService
 import com.exactpro.th2.conn.amqp.connservice.ConnServiceImpl
 import mu.KotlinLogging
@@ -69,11 +70,46 @@ fun main(args: Array<String>) {
                 .build()
         )
 
+        if (configuration.parameters != null) {
+            var reason: String? = null
+            if (configuration.sessionAlias == null) {
+                reason = "In old connection parameters version {sessionAlias} or {parameters} couldn't be null"
+            } else {
+                if (configuration.sessions != null) {
+                    reason = "Configuration couldn't contain old and new connection parameters version. it must be {sessions} or {parameters}"
+                } else {
+                    configuration.sessions = ArrayList()
+                    configuration.sessions?.plusAssign(
+                        ConnParameters(
+                            sessionAlias = configuration.sessionAlias,
+                            initialContextFactory = configuration.parameters.initialContextFactory,
+                            factorylookup = configuration.parameters.factorylookup,
+                            sendQueue = configuration.parameters.sendQueue,
+                            receiveQueue = configuration.parameters.receiveQueue
+                        )
+                    )
+                }
+            }
+            if (reason != null) {
+                eventRouter.safeSend(
+                    Event.start().endTimestamp()
+                        .status(Event.Status.FAILED)
+                        .type("Error")
+                        .name(reason),
+                    rootEvent.id
+                )
+                throw java.lang.IllegalArgumentException(reason)
+            }
+        }
+
         val rawRouter: MessageRouter<RawMessageBatch> = factory.messageRouterRawBatch
         val aliasToService = HashMap<String, ConnService>()
         val executor: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor()
-        configuration.sessions.forEach { connParameters ->
+        configuration.sessions?.forEach { connParameters ->
             run {
+                if (connParameters.sessionAlias == null) {
+                    throw IllegalArgumentException("Connection parameter {sessionAlias} can't be blank")
+                }
                 val publisher = MessagePublisher(
                     connParameters.sessionAlias,
                     configuration.drainIntervalMills,
@@ -92,8 +128,9 @@ fun main(args: Array<String>) {
                 )
                 resources += service
                 aliasToService[connParameters.sessionAlias] = service
+                service.start()
             }
-        }
+        }?: throw java.lang.IllegalArgumentException("Connection parameters can't be blank. Use {sessions} or {parameters + sessioAlias}")
         rawRouter.subscribeAll { _, rawBatch ->
             rawBatch.messagesList.forEach { msg ->
                 msg.runCatching {
@@ -133,7 +170,6 @@ fun main(args: Array<String>) {
                 }
             }
         }
-        aliasToService.forEach { (_, service) -> service.start() }
         readiness = true
 
         awaitShutdown(lock, condition)
