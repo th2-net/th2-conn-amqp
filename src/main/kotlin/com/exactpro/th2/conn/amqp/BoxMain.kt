@@ -27,6 +27,7 @@ import com.exactpro.th2.common.metrics.readiness
 import com.exactpro.th2.common.schema.factory.CommonFactory
 import com.exactpro.th2.common.schema.message.MessageRouter
 import com.exactpro.th2.conn.amqp.configuration.Configuration
+import com.exactpro.th2.conn.amqp.configuration.ConnParameters
 import com.exactpro.th2.conn.amqp.connservice.ConnService
 import com.exactpro.th2.conn.amqp.connservice.ConnServiceImpl
 import mu.KotlinLogging
@@ -69,10 +70,12 @@ fun main(args: Array<String>) {
                 .build()
         )
 
+        configureConnectionParameters(configuration, eventRouter, rootEvent)
+
         val rawRouter: MessageRouter<RawMessageBatch> = factory.messageRouterRawBatch
         val aliasToService = HashMap<String, ConnService>()
         val executor: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor()
-        configuration.sessions.forEach { connParameters ->
+        configuration.sessions?.forEach { connParameters ->
             run {
                 val publisher = MessagePublisher(
                     connParameters.sessionAlias,
@@ -92,15 +95,16 @@ fun main(args: Array<String>) {
                 )
                 resources += service
                 aliasToService[connParameters.sessionAlias] = service
+                service.start()
             }
-        }
+        } ?: error("Connection parameters can't be blank. Use {sessions} or {parameters + sessioAlias}")
         rawRouter.subscribeAll { _, rawBatch ->
             rawBatch.messagesList.forEach { msg ->
                 msg.runCatching {
                     val alias = msg.metadata.id.connectionId.sessionAlias
                     aliasToService.getOrElse(
                         alias,
-                        {throw IllegalArgumentException("Can't find service by alias {$alias}")}
+                        { error("Can't find service by alias {$alias}") }
                     ).send(this)
                 }.onFailure {
                     eventRouter.safeSend(
@@ -133,7 +137,6 @@ fun main(args: Array<String>) {
                 }
             }
         }
-        aliasToService.forEach { (_, service) -> service.start() }
         readiness = true
 
         awaitShutdown(lock, condition)
@@ -141,6 +144,51 @@ fun main(args: Array<String>) {
         LOGGER.error(ex) { "Cannot start the box" }
         exitProcess(1)
     }
+}
+
+private fun configureConnectionParameters(
+    configuration: Configuration,
+    eventRouter: MessageRouter<EventBatch>,
+    rootEvent: Event
+) {
+    when {
+        configuration.parameters != null && configuration.sessionAlias == null -> {
+            sendError(
+                eventRouter,
+                "The connection {parameters} configuration requires {sessionAlias}. Please specify the option or use the {sessions} configuration instead",
+                rootEvent
+            )
+        }
+        configuration.sessions != null && configuration.parameters != null ->
+            sendError(
+                eventRouter,
+                "Configuration can't contain both connection version. It must be {sessions} or {parameters}",
+                rootEvent
+            )
+
+        configuration.parameters != null && configuration.sessions == null && configuration.sessionAlias != null -> {
+            (configuration.sessions as ArrayList<ConnParameters>).plusAssign(
+                ConnParameters(
+                    sessionAlias = configuration.sessionAlias,
+                    initialContextFactory = configuration.parameters.initialContextFactory,
+                    factorylookup = configuration.parameters.factorylookup,
+                    sendQueue = configuration.parameters.sendQueue,
+                    receiveQueue = configuration.parameters.receiveQueue
+                )
+            )
+        }
+    }
+}
+
+private fun sendError(eventRouter: MessageRouter<EventBatch>, reason: String, rootEvent: Event) {
+    eventRouter.safeSend(
+        Event.start().endTimestamp()
+            .status(Event.Status.FAILED)
+            .type("Error")
+            .name(reason),
+        rootEvent.id
+    )
+    error(reason)
 }
 
 private fun MessageRouter<EventBatch>.safeSend(event: Event, parentId: String?) {

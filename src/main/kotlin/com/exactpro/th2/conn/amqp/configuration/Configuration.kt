@@ -20,11 +20,19 @@ class Configuration(
     val enableMessageSendingEvent: Boolean = true,
     val drainIntervalMills: Long = 1000L,
     val rootEventName: String = "ConnAmqp",
-    val sessions: List<ConnParameters>
+    var sessions: MutableList<ConnParameters>?,
+    val sessionAlias: String?,
+    val parameters: SingleConnectionConnParameters?
 )
 
 class ConnParameters(
     val sessionAlias: String,
+    val initialContextFactory: String,
+    val factorylookup: String,
+    val sendQueue: String,
+    val receiveQueue: String
+)
+class SingleConnectionConnParameters(
     val initialContextFactory: String,
     val factorylookup: String,
     val sendQueue: String,
