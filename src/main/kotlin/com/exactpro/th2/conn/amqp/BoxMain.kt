@@ -70,37 +70,7 @@ fun main(args: Array<String>) {
                 .build()
         )
 
-        if (configuration.parameters != null) {
-            var reason: String? = null
-            if (configuration.sessionAlias == null) {
-                reason = "In old connection parameters version {sessionAlias} or {parameters} couldn't be null"
-            } else {
-                if (configuration.sessions != null) {
-                    reason = "Configuration couldn't contain old and new connection parameters version. it must be {sessions} or {parameters}"
-                } else {
-                    configuration.sessions = ArrayList()
-                    configuration.sessions?.plusAssign(
-                        ConnParameters(
-                            sessionAlias = configuration.sessionAlias,
-                            initialContextFactory = configuration.parameters.initialContextFactory,
-                            factorylookup = configuration.parameters.factorylookup,
-                            sendQueue = configuration.parameters.sendQueue,
-                            receiveQueue = configuration.parameters.receiveQueue
-                        )
-                    )
-                }
-            }
-            if (reason != null) {
-                eventRouter.safeSend(
-                    Event.start().endTimestamp()
-                        .status(Event.Status.FAILED)
-                        .type("Error")
-                        .name(reason),
-                    rootEvent.id
-                )
-                throw java.lang.IllegalArgumentException(reason)
-            }
-        }
+        configureConnectionParameters(configuration, eventRouter, rootEvent)
 
         val rawRouter: MessageRouter<RawMessageBatch> = factory.messageRouterRawBatch
         val aliasToService = HashMap<String, ConnService>()
@@ -130,14 +100,14 @@ fun main(args: Array<String>) {
                 aliasToService[connParameters.sessionAlias] = service
                 service.start()
             }
-        }?: throw java.lang.IllegalArgumentException("Connection parameters can't be blank. Use {sessions} or {parameters + sessioAlias}")
+        } ?: throw java.lang.IllegalArgumentException("Connection parameters can't be blank. Use {sessions} or {parameters + sessioAlias}")
         rawRouter.subscribeAll { _, rawBatch ->
             rawBatch.messagesList.forEach { msg ->
                 msg.runCatching {
                     val alias = msg.metadata.id.connectionId.sessionAlias
                     aliasToService.getOrElse(
                         alias,
-                        {throw IllegalArgumentException("Can't find service by alias {$alias}")}
+                        { throw IllegalArgumentException("Can't find service by alias {$alias}") }
                     ).send(this)
                 }.onFailure {
                     eventRouter.safeSend(
@@ -177,6 +147,51 @@ fun main(args: Array<String>) {
         LOGGER.error(ex) { "Cannot start the box" }
         exitProcess(1)
     }
+}
+
+private fun configureConnectionParameters(
+    configuration: Configuration,
+    eventRouter: MessageRouter<EventBatch>,
+    rootEvent: Event
+) {
+    when {
+        configuration.parameters != null && configuration.sessionAlias == null -> {
+            sendError(
+                eventRouter,
+                "The connection {parameters} configuration requires {sessionAlias}. Please specify the option or use the {sessions} configuration instead",
+                rootEvent
+            )
+        }
+        configuration.sessions != null && configuration.parameters != null ->
+            sendError(
+                eventRouter,
+                "Configuration can't contain both connection version. It must be {sessions} or {parameters}",
+                rootEvent
+            )
+
+        configuration.parameters != null && configuration.sessions == null && configuration.sessionAlias != null -> {
+            (configuration.sessions as ArrayList<ConnParameters>).plusAssign(
+                ConnParameters(
+                    sessionAlias = configuration.sessionAlias,
+                    initialContextFactory = configuration.parameters.initialContextFactory,
+                    factorylookup = configuration.parameters.factorylookup,
+                    sendQueue = configuration.parameters.sendQueue,
+                    receiveQueue = configuration.parameters.receiveQueue
+                )
+            )
+        }
+    }
+}
+
+private fun sendError(eventRouter: MessageRouter<EventBatch>, reason: String?, rootEvent: Event) {
+    eventRouter.safeSend(
+        Event.start().endTimestamp()
+            .status(Event.Status.FAILED)
+            .type("Error")
+            .name(reason),
+        rootEvent.id
+    )
+    throw java.lang.IllegalArgumentException(reason)
 }
 
 private fun MessageRouter<EventBatch>.safeSend(event: Event, parentId: String?) {

@@ -22,11 +22,17 @@ class Configuration(
     val rootEventName: String = "ConnAmqp",
     var sessions: MutableList<ConnParameters>?,
     val sessionAlias: String?,
-    val parameters: ConnParameters?
+    val parameters: SingleConnectionConnParameters?
 )
 
 class ConnParameters(
-    val sessionAlias: String?,
+    val sessionAlias: String,
+    val initialContextFactory: String,
+    val factorylookup: String,
+    val sendQueue: String,
+    val receiveQueue: String
+)
+class SingleConnectionConnParameters(
     val initialContextFactory: String,
     val factorylookup: String,
     val sendQueue: String,

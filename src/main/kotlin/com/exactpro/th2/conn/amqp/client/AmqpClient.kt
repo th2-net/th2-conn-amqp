@@ -31,7 +31,7 @@ import javax.jms.Message
 import javax.jms.MessageListener
 import javax.naming.InitialContext
 
-typealias Config = Map<String, String?>
+typealias Config = Map<String, String>
 
 @NotThreadSafe
 class AmqpClient(config: Config, val errorReporter: (Throwable) -> Unit) : IClient {
